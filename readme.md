@@ -1,12 +1,3 @@
-Perfect — here’s a **clean, corrected, GitHub-ready README** with a properly aligned ASCII flow diagram that reflects:
-
- LWBS (Leave Without Being Seen) happens *before* treatment starts,
- Fast-Track patients can still have labs and DI (diagnostics) but **no consults or admits**,
- Acute patients can have 1-, 2-, or 3-touch flows with possible consult/admit,
- The layout is easy to read directly in Markdown without wrapping errors.
-
----
-
 #  Emergency Department Simulation (ED-EMS)
 
 **Author:** Murray Ware
