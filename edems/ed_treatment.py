@@ -4,7 +4,7 @@ from typing import List, Tuple, Dict, Any, Optional
 import math
 import simpy
 import random
-
+import simpy.events as sim_events
 
 try:
     from typing import TYPE_CHECKING
@@ -16,44 +16,6 @@ except Exception:
 
 class EDTreatmentMixin:
     """Bed dispatchers + doctor assignment + labs-gated treatment for ACUTE and FAST."""
-
-    # -----------------------------
-    # Doctor runtime / availability
-    # -----------------------------
-    def _init_doctors(self):
-        """
-        Build per-area doctor runtime lists.
-        Each doctor tracks:
-          • active_panel       – # patients still occupying this doc's panel
-          • signed_up_by_hour  – abs_hour -> signups for hourly cap
-        Shifts repeat every day.
-        """
-        self._doctors_by_area: Dict[str, List[Dict[str, Any]]] = {}
-
-        for d in (getattr(self.cfg, "doctors", []) or []):
-            self._doctors_by_area.setdefault(d.area, []).append({
-                "name": d.name,
-                "area": d.area,
-                "start_min": int(d.start_minute),
-                "shift_min": int(d.shift_minutes),
-                "assess_draw": d.assess_time_draw,
-                "reassess_draw": d.reassess_time_draw,
-                "max_panel": int(d.max_active_panel),
-                "hourly_caps": list(d.hourly_max_signups or []),  # len 12 or 24 ok
-                "active_panel": 0,
-                "signed_up_by_abs_hour": {},  # abs_hour -> count
-            })
-
-        # require at least one doc per area that can place patients
-        areas_needing_docs = set(self._cap.keys())
-        if self._ft_enabled and self._ft_cap > 0:
-            areas_needing_docs.add(self._ft_name)
-        for area in sorted(areas_needing_docs):
-            if not self._doctors_by_area.get(area):
-                raise ValueError(f"No doctors configured for area '{area}'.")
-
-
-    # edems/ed_treatment.py (inside EDTreatmentMixin)
 
     def _init_nurses(self):
         """
@@ -148,72 +110,24 @@ class EDTreatmentMixin:
     def _hour_of_day(now_min: float) -> int:
         return int((now_min % 1440) // 60)
 
-    def _doc_hour_cap(self, doc: Dict[str, Any], now_min: float) -> int:
-        caps = doc["hourly_caps"]
-        if not caps:
-            return math.inf
-        idx = self._hour_of_day(now_min)
-        return int(caps[idx % len(caps)])
-
-    def _doc_can_signup(self, doc: Dict[str, Any], now_min: float) -> bool:
-        if not self._doc_on_shift(doc, now_min):
-            return False
-        if doc["active_panel"] >= doc["max_panel"]:
-            return False
-        cap = self._doc_hour_cap(doc, now_min)
-        signed = doc["signed_up_by_abs_hour"].get(self._abs_hour(now_min), 0)
-        return signed < cap
-
-    def _choose_doctor(self, area: str, now_min: float) -> Optional[Dict[str, Any]]:
-        docs = self._doctors_by_area.get(area, [])
-        eligible = [d for d in docs if self._doc_can_signup(d, now_min)]
-        if not eligible:
-            return None
-        # least-loaded then name
-        eligible.sort(key=lambda d: (d["active_panel"], d["name"]))
-        return eligible[0]
-
-    def _assign_doctor(self, p: "Patient", area: str) -> Optional[Dict[str, Any]]:
-        now = self.env.now
-        doc = self._choose_doctor(area, now)
+    def _assign_doctor(self, p, area: str):
+        doc = self.docmgr.try_signup(area, self.env.now)
         if not doc:
             return None
-        # book one signup this absolute hour + occupy panel
-        ah = self._abs_hour(now)
-        doc["signed_up_by_abs_hour"][ah] = doc["signed_up_by_abs_hour"].get(ah, 0) + 1
-        doc["active_panel"] += 1
-        # record on patient
         p.doctor_name = doc["name"]
-        p.treatment_start = now
-        self.eventlog.add(now, "treatment_start", pid=p.id, area=area,
+        p.treatment_start = self.env.now
+        self.eventlog.add(self.env.now, "treatment_start", pid=p.id, area=area,
                           doctor=p.doctor_name, doc_active_panel=doc["active_panel"])
         return doc
 
-    def _release_doctor_panel(self, doc: Dict[str, Any]):
-        doc["active_panel"] = max(0, doc["active_panel"] - 1)
+    def _release_doctor_panel(self, doc):
+        self.docmgr.release_panel(doc)
 
-    def _draw_assess_minutes(self, doc: Dict[str, Any]) -> float:
-        try:
-            return float(doc["assess_draw"]())
-        except Exception:
-            return 15.0
+    def _draw_assess_minutes(self, doc):
+        return self.docmgr.assess_minutes(doc)
 
-
-    def _reassess_minutes(self, doc) -> float:
-        # Prefer the configured reassess_time_draw from this doctor
-        try:
-            draw = doc.get("reassess_draw", None)
-        except AttributeError:
-            draw = None
-        try:
-            if callable(draw):
-                val = float(draw())
-                # make sure it's at least a tiny bit longer than a minimal assess
-                return max(val, 1.0)
-        except Exception:
-            pass
-        # fallback
-        return 20.0
+    def _reassess_minutes(self, doc):
+        return self.docmgr.reassess_minutes(doc)
 
     def _run_consults_if_applicable(self, p) -> None:
         """
@@ -409,8 +323,14 @@ class EDTreatmentMixin:
     # ---------------------------------------------
 
     def _treat_acute_with_assigned_doctor(self, p, area: str, doc):
+        # ---- acquire a doctor for this area ----
+        doc = self.docmgr.try_signup(area, self.env.now)
+        while doc is None:
+            yield self.env.timeout(1)
+            doc = self.docmgr.try_signup(area, self.env.now)
+
         # ---------- Touch 1: initial MD assessment ----------
-        assess_min = self._draw_assess_minutes(doc)
+        assess_min = self.docmgr.assess_minutes(doc)
         self.eventlog.add(self.env.now, "assess_start", pid=p.id, area=area,
                           minutes=assess_min, mode="ACUTE", doctor=doc["name"], touch=1)
         yield self.env.timeout(assess_min)
@@ -419,33 +339,27 @@ class EDTreatmentMixin:
 
         # ---------- Optional consults (ACUTE only; two/three-touch only) ----------
         if area != self._ft_name and (getattr(p, "two_touch", 0) == 1 or getattr(p, "three_touch", 0) == 1):
-            # Decide whether to consult, then attempt up to 2 consults sequentially
             want_consult = (random.random() < float(getattr(self.cfg.orders, "consult_prob", 0.30) or 0.30))
             if want_consult:
                 p.consult_ordered = 1
-                # Choose a service; simplest: pick the unit with largest consult_p weight
-                units = getattr(self.cfg.inpatient, "units", {})
+                units = getattr(self.cfg.inpatient, "units", {}) or {}
                 if units:
-                    # simple weighted pick by consult_p
                     services, weights = [], []
                     for name, spec in units.items():
                         services.append(name)
                         weights.append(float(getattr(spec, "consult_p", 0.0) or 0.0))
                     if sum(weights) <= 0:
-                        services = ["Medicine"]; weights = [1.0]
-                    # normalize
-                    sw = sum(weights)
-                    weights = [w / sw for w in weights]
+                        services, weights = ["Medicine"], [1.0]
+                    else:
+                        sw = sum(weights); weights = [w / sw for w in weights]
                 else:
                     services, weights = ["Medicine"], [1.0]
 
                 consult_attempts = 0
-                admitted = False
                 while consult_attempts < 2:
                     consult_attempts += 1
                     service = random.choices(services, weights=weights, k=1)[0]
                     spec = units.get(service, None)
-                    # time the consult
                     c_draw = getattr(spec, "consult_time_draw", None)
                     c_min = float(c_draw()) if callable(c_draw) else 60.0
                     p.consult_start = self.env.now
@@ -459,28 +373,23 @@ class EDTreatmentMixin:
                                       pid=p.id, area=area, minutes=p.consult_minutes,
                                       service=service, attempt=consult_attempts)
 
-                    # admit decision
                     admit_p = float(getattr(spec, "consult_admit_p", 0.0) or 0.0)
                     if random.random() < admit_p:
                         p.consult_admit = 1
-                        # Request inpatient placement; patient will BOARD in ED until transfer
                         self._admit_request(p, service)
                         self.eventlog.add(self.env.now, "admit_requested",
                                           pid=p.id, service=service, unit=getattr(p, "admit_unit", None))
-
-                        # Block ED flow until transfer to unit (so ED bed remains occupied)
                         if hasattr(p, "_admit_event"):
-                            yield p._admit_event  # set/succeeded by InpatientFlowMixin on transfer
-                        # ED bed was freed by InpatientFlowMixin at transfer; we're done here
-                        self._release_doctor_panel(doc)
+                            yield p._admit_event  # blocks until inpatient transfer happens
+                        # At transfer time, ED bed should be freed by inpatient flow
+                        self.docmgr.release_panel(doc)
                         self.eventlog.add(self.env.now, "doctor_panel_release", pid=p.id, area=area,
-                                          mode="ACUTE", doctor=doc["name"], doc_active_panel=doc["active_panel"])
+                                          mode="ACUTE", doctor=doc["name"],
+                                          doc_active_panel=doc["active_panel"])
                         return
                     else:
-                        # not admitted on this consult; try next (if any)
                         self.eventlog.add(self.env.now, "consult_no_admit",
                                           pid=p.id, service=service, attempt=consult_attempts)
-                # fell through both consults without admit
                 p.consult_admit = 0
             else:
                 p.consult_ordered = 0
@@ -496,11 +405,7 @@ class EDTreatmentMixin:
                 procs = [self.env.timeout(nurse_minutes)]
                 if getattr(p, "requires_lab", 0) == 1:
                     procs.append(self.env.process(self._run_labs(p)))
-                if len(procs) == 1:
-                    yield procs[0]
-                else:
-                    import simpy.events as sim_events
-                    yield sim_events.AllOf(self.env, procs)
+                yield (procs[0] if len(procs) == 1 else sim_events.AllOf(self.env, procs))
                 p.nurse_assess_end = self.env.now
                 p.nurse_assess_minutes = p.nurse_assess_end - p.nurse_assess_start
                 self.eventlog.add(self.env.now, "nurse_assess_end", pid=p.id, minutes=p.nurse_assess_minutes)
@@ -509,7 +414,6 @@ class EDTreatmentMixin:
                 yield from self._run_labs(p)
 
         # ---------- Strict branching by touches ----------
-        # 1-touch: discharge now (no DI)
         if getattr(p, "one_touch", 0) == 1:
             p.bed_end = self.env.now
             p.disposition_time = self.env.now
@@ -518,34 +422,34 @@ class EDTreatmentMixin:
             self._busy[area] = max(0, self._busy[area] - 1)
             self.eventlog.add(self.env.now, "discharge", pid=p.id, area=area,
                               busy=self._busy[area], cap=self._cap[area], is_ems=p.is_ems, doctor=doc["name"])
-            self._release_doctor_panel(doc)
+            self.docmgr.release_panel(doc)
             self.eventlog.add(self.env.now, "doctor_panel_release", pid=p.id, area=area,
-                              mode="ACUTE", doctor=doc["name"], doc_active_panel=doc["active_panel"])
+                              mode="ACUTE", doctor=doc["name"],
+                              doc_active_panel=doc["active_panel"])
             return
 
-        # For 2-/3-touch: DI runs AFTER nursing (policy)
+        # 2-/3-touch: DI AFTER nursing
         if getattr(p, "requires_di", 0) == 1:
             yield from self._run_di(p)
 
         # One reassessment (touch 2)
-        reassess_doc = doc
-        rmin2 = self._reassess_minutes(reassess_doc)
+        rmin2 = self.docmgr.reassess_minutes(doc)
         self.eventlog.add(self.env.now, "reassess_start", pid=p.id, area=area,
-                          minutes=rmin2, mode="ACUTE", doctor=reassess_doc["name"], touch=2)
+                          minutes=rmin2, mode="ACUTE", doctor=doc["name"], touch=2)
         yield self.env.timeout(rmin2)
         self.eventlog.add(self.env.now, "reassess_end", pid=p.id, area=area,
-                          mode="ACUTE", doctor=reassess_doc["name"], touch=2)
+                          mode="ACUTE", doctor=doc["name"], touch=2)
 
         # If explicitly three_touch, do a second reassessment (touch 3)
         if getattr(p, "three_touch", 0) == 1:
-            rmin3 = self._reassess_minutes(reassess_doc)
+            rmin3 = self.docmgr.reassess_minutes(doc)
             self.eventlog.add(self.env.now, "reassess_start", pid=p.id, area=area,
-                              minutes=rmin3, mode="ACUTE", doctor=reassess_doc["name"], touch=3)
+                              minutes=rmin3, mode="ACUTE", doctor=doc["name"], touch=3)
             yield self.env.timeout(rmin3)
             self.eventlog.add(self.env.now, "reassess_end", pid=p.id, area=area,
-                              mode="ACUTE", doctor=reassess_doc["name"], touch=3)
+                              mode="ACUTE", doctor=doc["name"], touch=3)
 
-        # Core treatment (ED)
+        # Core treatment
         TREAT_MIN = 180.0
         yield self.env.timeout(TREAT_MIN)
 
@@ -553,41 +457,47 @@ class EDTreatmentMixin:
         p.bed_end = self.env.now
         p.disposition_time = self.env.now
         p.los_minutes = p.disposition_time - p.arrival_time
-        self.eventlog.add(self.env.now, "bed_end", pid=p.id, area=area, is_ems=p.is_ems, doctor=reassess_doc["name"])
+        self.eventlog.add(self.env.now, "bed_end", pid=p.id, area=area, is_ems=p.is_ems, doctor=doc["name"])
         self._busy[area] = max(0, self._busy[area] - 1)
         self.eventlog.add(self.env.now, "discharge", pid=p.id, area=area,
-                          busy=self._busy[area], cap=self._cap[area], is_ems=p.is_ems, doctor=reassess_doc["name"])
-        self._release_doctor_panel(doc)
+                          busy=self._busy[area], cap=self._cap[area], is_ems=p.is_ems, doctor=doc["name"])
+        self.docmgr.release_panel(doc)
         self.eventlog.add(self.env.now, "doctor_panel_release", pid=p.id, area=area,
-                          mode="ACUTE", doctor=doc["name"], doc_active_panel=doc["active_panel"])
-
+                          mode="ACUTE", doctor=doc["name"],
+                          doc_active_panel=doc["active_panel"])
 
 
 
 
     def _treat_fast_with_assigned_doctor(self, p, area: str, doc):
-        # assess
-        assess_min = self._draw_assess_minutes(doc)
+        # ---- acquire a doctor for FAST ----
+        doc = self.docmgr.try_signup(area, self.env.now)
+        while doc is None:
+            yield self.env.timeout(1)
+            doc = self.docmgr.try_signup(area, self.env.now)
+
+        # Assess
+        assess_min = self.docmgr.assess_minutes(doc)
         self.eventlog.add(self.env.now, "assess_start", pid=p.id, area=area,
                           minutes=assess_min, mode="FAST", doctor=doc["name"])
         yield self.env.timeout(assess_min)
         self.eventlog.add(self.env.now, "assess_end", pid=p.id, area=area, mode="FAST", doctor=doc["name"])
 
-        # labs & DI can run concurrently in FAST
+        # Labs & DI can run concurrently in FAST
         procs = []
         if getattr(p, "requires_lab", 0) == 1:
             procs.append(self.env.process(self._run_labs(p)))
         if getattr(p, "requires_di", 0) == 1:
             procs.append(self.env.process(self._run_di(p)))
         if procs:
-            yield simpy.events.AllOf(self.env, procs)
+            yield sim_events.AllOf(self.env, procs)
 
-        # 1-touch → 60-min tx; 2-touch → reassess then 60-min tx
+        # Touch branching (no consults/admit in FAST)
         if getattr(p, "one_touch", 0) == 1:
             TREAT_MIN = 60.0
             yield self.env.timeout(TREAT_MIN)
         else:
-            rmin = self._reassess_minutes(doc)
+            rmin = self.docmgr.reassess_minutes(doc)
             self.eventlog.add(self.env.now, "reassess_start", pid=p.id, area=area,
                               minutes=rmin, mode="FAST", doctor=doc["name"], touch=2)
             yield self.env.timeout(rmin)
@@ -603,6 +513,7 @@ class EDTreatmentMixin:
         self._ft_busy = max(0, self._ft_busy - 1)
         self.eventlog.add(self.env.now, "discharge", pid=p.id, area=area,
                           busy=self._ft_busy, cap=self._ft_cap, is_ems=p.is_ems, doctor=doc["name"])
-        self._release_doctor_panel(doc)
+        self.docmgr.release_panel(doc)
         self.eventlog.add(self.env.now, "doctor_panel_release", pid=p.id, area=area,
-                          mode="FAST", doctor=doc["name"], doc_active_panel=doc["active_panel"])
+                          mode="FAST", doctor=doc["name"],
+                          doc_active_panel=doc["active_panel"])

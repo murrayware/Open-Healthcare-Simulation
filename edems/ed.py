@@ -13,6 +13,7 @@ from .patient_generation import PatientGenerationMixin
 from .lwbs import LwbsMixin
 from .orders import OrdersMixin
 from .inpatient_flow import InpatientFlowMixin
+from .doctor import DoctorManager
 
 try:
     from typing import TYPE_CHECKING
@@ -22,7 +23,7 @@ except Exception:
     TYPE_CHECKING = False
 
 
-class SingleSiteSim(EMSOffloadMixin, EDTreatmentMixin, PatientGenerationMixin, LwbsMixin, OrdersMixin, InpatientFlowMixin):
+class SingleSiteSim(EMSOffloadMixin, EDTreatmentMixin, PatientGenerationMixin, LwbsMixin, OrdersMixin, InpatientFlowMixin,  DoctorManager):
     def __init__(self, cfg, external_env=None, external_eventlog=None):
         self.cfg = cfg
         self.env = external_env or simpy.Environment()
@@ -47,8 +48,19 @@ class SingleSiteSim(EMSOffloadMixin, EDTreatmentMixin, PatientGenerationMixin, L
         self._ft_cap     = int(getattr(ft_cfg, "assessment_spaces", 0) or 0)
         self._ft_busy    = 0
 
-        # --- Doctors (uses _cap and _ft_* above) ---
-        self._init_doctors()
+        ft_cfg = getattr(self.cfg, "fasttrack", None)
+        self._ft_enabled: bool = bool(ft_cfg and getattr(ft_cfg, "enabled", False))
+        self._ft_name: str = getattr(ft_cfg, "name", "FAST") if self._ft_enabled else "FAST"
+        self._ft_cap: int = int(getattr(ft_cfg, "assessment_spaces", 0) or 0)
+        self._ft_busy: int = 0
+
+        # ---- Doctor manager ----
+        areas_needed = list(self._cap.keys())
+        if self._ft_enabled and self._ft_cap > 0:
+            areas_needed.append(self._ft_name)
+
+        self.docmgr = DoctorManager(self.env, self.eventlog, host=self)
+
 
         # --- EMS download holding ---
         self._download_cap  = int(getattr(self.cfg.ems, "download_capacity", 0) or 0)
