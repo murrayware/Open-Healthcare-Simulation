@@ -47,7 +47,8 @@ env.run(until=END_MINUTES)
 
 Each simulated patient receives:
 
-* A **CTAS acuity score**
+* A **CTAS score**
+* A **calculated acuity score**
 * Route to **Fast Track** or **Acute**
 * Assigned **touch count** (1-, 2-, or 3-touch)
 * Orders for **labs** and/or **diagnostic imaging (DI)**
