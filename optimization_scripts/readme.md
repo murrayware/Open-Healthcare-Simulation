@@ -1,0 +1,1 @@
+These are functions im hoping to add to frontend one day

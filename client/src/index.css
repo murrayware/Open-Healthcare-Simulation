@@ -1,0 +1,60 @@
+@import "tailwindcss";
+@import "leaflet/dist/leaflet.css";
+
+/* 
+  CSS Custom Properties are now managed by the centralized theme system
+  See src/theme/index.js for theme configuration
+  These properties are automatically applied by applyCSSCustomProperties()
+*/
+
+/* Base styles using theme variables */
+body {
+  font-family: "Inter", "Roboto", "Helvetica", "Arial", sans-serif;
+  background-color: var(--color-bg);
+  color: var(--color-text-primary);
+  line-height: 1.6;
+}
+
+/* Utility classes using theme variables */
+.bg-surface {
+  background-color: var(--color-surface);
+}
+
+.bg-surface-elevated {
+  background-color: var(--color-surface-elevated);
+}
+
+.text-primary {
+  color: var(--color-text-primary);
+}
+
+.text-secondary {
+  color: var(--color-text-secondary);
+}
+
+.border-default {
+  border-color: var(--color-border);
+}
+
+.border-focus {
+  border-color: var(--color-border-focus);
+}
+
+/* Custom scrollbar styling */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--color-surface);
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--color-border);
+  border-radius: var(--radius-sm);
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--color-text-secondary);
+}

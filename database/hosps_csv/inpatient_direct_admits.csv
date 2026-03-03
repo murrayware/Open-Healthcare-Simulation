@@ -1,0 +1,2 @@
+hospital,enabled,hours,med_1,med_2,med_3,med_4,med_5,med_6,med_7,med_8,med_9,med_10,med_11,med_12,surg_1,surg_2,surg_3,surg_4,surg_5,surg_6,surg_7,surg_8,surg_9,surg_10,surg_11,surg_12,icu_1,icu_2,icu_3,icu_4,icu_5,icu_6,icu_7,icu_8,icu_9,icu_10,icu_11,icu_12
+Sample General,True,12,2,2,3,3,4,4,4,4,3,3,2,2,1,1,1,2,2,2,2,2,2,1,1,1,0.2,0.2,0.2,0.2,0.2,0.2,0.2,0.2,0.2,0.2,0.2,0.2

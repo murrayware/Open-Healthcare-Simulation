@@ -1,0 +1,12 @@
+create db
+python3  csv_template.py --reset-db
+
+import csv's
+python3  csv_template.py --import --dir hosps_csv
+
+
+add csv's to default hosps
+
+python3 seed_db.py
+# or
+python3 seed_db.py import

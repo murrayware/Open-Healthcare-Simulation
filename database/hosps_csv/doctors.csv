@@ -1,0 +1,41 @@
+hospital,name,area,start_minute,shift_minutes,max_active_panel,hcap_1,hcap_2,hcap_3,hcap_4,hcap_5,hcap_6,hcap_7,hcap_8,hcap_9,hcap_10,hcap_11,hcap_12,assess_type,assess_low,assess_high,reassess_low,reassess_high
+Riverside General,DrA1,A,0,720,11,3,3,3,3,2,2,2,2,2,2,2,2,uniform,12,35,8,20
+Riverside General,DrA2,A,720,720,11,3,3,3,3,2,2,2,2,2,2,2,2,uniform,12,35,8,20
+Riverside General,DrFT1,FAST,0,720,22,8,8,8,8,7,7,4,4,4,4,4,4,uniform,5,12,3,8
+Riverside General,DrFT2,FAST,720,720,22,8,8,8,8,7,7,4,4,4,4,4,4,uniform,5,12,3,8
+North Valley Medical,DrA1,A,0,720,12,3,3,3,3,2,2,2,2,2,2,2,2,uniform,12,35,8,20
+North Valley Medical,DrA2,A,720,720,12,3,3,3,3,2,2,2,2,2,2,2,2,uniform,12,35,8,20
+North Valley Medical,DrFT1,FAST,0,720,22,8,8,8,8,7,7,4,4,4,4,4,4,uniform,5,12,3,8
+North Valley Medical,DrFT2,FAST,720,720,22,8,8,8,8,7,7,4,4,4,4,4,4,uniform,5,12,3,8
+Prairie Health Centre,DrA1,A,0,720,10,3,3,3,3,2,2,2,2,2,2,2,2,uniform,12,35,8,20
+Prairie Health Centre,DrA2,A,720,720,11,3,3,3,3,2,2,2,2,2,2,2,2,uniform,12,35,8,20
+Prairie Health Centre,DrFT1,FAST,0,720,22,8,8,8,8,7,7,4,4,4,4,4,4,uniform,5,12,3,8
+Prairie Health Centre,DrFT2,FAST,720,720,22,8,8,8,8,7,7,4,4,4,4,4,4,uniform,5,12,3,8
+Lakeside Regional,DrA1,A,0,720,12,3,3,3,3,2,2,2,2,2,2,2,2,uniform,12,35,8,20
+Lakeside Regional,DrA2,A,720,720,10,3,3,3,3,2,2,2,2,2,2,2,2,uniform,12,35,8,20
+Lakeside Regional,DrFT1,FAST,0,720,22,8,8,8,8,7,7,4,4,4,4,4,4,uniform,5,12,3,8
+Lakeside Regional,DrFT2,FAST,720,720,22,8,8,8,8,7,7,4,4,4,4,4,4,uniform,5,12,3,8
+Foothills Community,DrA1,A,0,720,12,3,3,3,3,2,2,2,2,2,2,2,2,uniform,12,35,8,20
+Foothills Community,DrA2,A,720,720,10,3,3,3,3,2,2,2,2,2,2,2,2,uniform,12,35,8,20
+Foothills Community,DrFT1,FAST,0,720,22,8,8,8,8,7,7,4,4,4,4,4,4,uniform,5,12,3,8
+Foothills Community,DrFT2,FAST,720,720,22,8,8,8,8,7,7,4,4,4,4,4,4,uniform,5,12,3,8
+Meadowview Hospital,DrA1,A,0,720,12,3,3,3,3,2,2,2,2,2,2,2,2,uniform,12,35,8,20
+Meadowview Hospital,DrA2,A,720,720,12,3,3,3,3,2,2,2,2,2,2,2,2,uniform,12,35,8,20
+Meadowview Hospital,DrFT1,FAST,0,720,22,8,8,8,8,7,7,4,4,4,4,4,4,uniform,5,12,3,8
+Meadowview Hospital,DrFT2,FAST,720,720,22,8,8,8,8,7,7,4,4,4,4,4,4,uniform,5,12,3,8
+Stony Creek Medical,DrA1,A,0,720,12,3,3,3,3,2,2,2,2,2,2,2,2,uniform,12,35,8,20
+Stony Creek Medical,DrA2,A,720,720,11,3,3,3,3,2,2,2,2,2,2,2,2,uniform,12,35,8,20
+Stony Creek Medical,DrFT1,FAST,0,720,22,8,8,8,8,7,7,4,4,4,4,4,4,uniform,5,12,3,8
+Stony Creek Medical,DrFT2,FAST,720,720,22,8,8,8,8,7,7,4,4,4,4,4,4,uniform,5,12,3,8
+Aspen Ridge Hospital,DrA1,A,0,720,11,3,3,3,3,2,2,2,2,2,2,2,2,uniform,12,35,8,20
+Aspen Ridge Hospital,DrA2,A,720,720,12,3,3,3,3,2,2,2,2,2,2,2,2,uniform,12,35,8,20
+Aspen Ridge Hospital,DrFT1,FAST,0,720,22,8,8,8,8,7,7,4,4,4,4,4,4,uniform,5,12,3,8
+Aspen Ridge Hospital,DrFT2,FAST,720,720,22,8,8,8,8,7,7,4,4,4,4,4,4,uniform,5,12,3,8
+Maple Grove Medical,DrA1,A,0,720,10,3,3,3,3,2,2,2,2,2,2,2,2,uniform,12,35,8,20
+Maple Grove Medical,DrA2,A,720,720,10,3,3,3,3,2,2,2,2,2,2,2,2,uniform,12,35,8,20
+Maple Grove Medical,DrFT1,FAST,0,720,22,8,8,8,8,7,7,4,4,4,4,4,4,uniform,5,12,3,8
+Maple Grove Medical,DrFT2,FAST,720,720,22,8,8,8,8,7,7,4,4,4,4,4,4,uniform,5,12,3,8
+Parkland General,DrA1,A,0,720,11,3,3,3,3,2,2,2,2,2,2,2,2,uniform,12,35,8,20
+Parkland General,DrA2,A,720,720,11,3,3,3,3,2,2,2,2,2,2,2,2,uniform,12,35,8,20
+Parkland General,DrFT1,FAST,0,720,22,8,8,8,8,7,7,4,4,4,4,4,4,uniform,5,12,3,8
+Parkland General,DrFT2,FAST,720,720,22,8,8,8,8,7,7,4,4,4,4,4,4,uniform,5,12,3,8

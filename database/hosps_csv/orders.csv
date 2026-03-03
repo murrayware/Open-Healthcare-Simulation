@@ -1,0 +1,11 @@
+hospital,proc_prob,lab_prob,di_prob,proc_work_low,proc_work_high,proc_time_low,proc_time_high,lab_work_low,lab_work_high,lab_time_low,lab_time_high,di_work_low,di_work_high,xray_low,xray_high,ct_low,ct_high,us_low,us_high,p_one_touch,p_three_touch
+Riverside General,0.24,0.47,0.37,2,6,10,40,2,5,45,120,1,4,30,90,60,150,45,120,0.24,0.14
+North Valley Medical,0.23,0.47,0.31,2,6,10,40,2,5,45,120,1,4,30,90,60,150,45,120,0.26,0.12
+Prairie Health Centre,0.27,0.51,0.36,2,6,10,40,2,5,45,120,1,4,30,90,60,150,45,120,0.23,0.12
+Lakeside Regional,0.24,0.57,0.31,2,6,10,40,2,5,45,120,1,4,30,90,60,150,45,120,0.27,0.14
+Foothills Community,0.26,0.58,0.34,2,6,10,40,2,5,45,120,1,4,30,90,60,150,45,120,0.29,0.11
+Meadowview Hospital,0.28,0.51,0.37,2,6,10,40,2,5,45,120,1,4,30,90,60,150,45,120,0.23,0.1
+Stony Creek Medical,0.23,0.59,0.37,2,6,10,40,2,5,45,120,1,4,30,90,60,150,45,120,0.25,0.09
+Aspen Ridge Hospital,0.21,0.51,0.37,2,6,10,40,2,5,45,120,1,4,30,90,60,150,45,120,0.24,0.09
+Maple Grove Medical,0.21,0.59,0.36,2,6,10,40,2,5,45,120,1,4,30,90,60,150,45,120,0.27,0.11
+Parkland General,0.29,0.59,0.34,2,6,10,40,2,5,45,120,1,4,30,90,60,150,45,120,0.29,0.08

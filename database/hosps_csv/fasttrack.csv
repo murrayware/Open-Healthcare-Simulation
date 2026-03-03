@@ -1,0 +1,11 @@
+hospital,enabled,name,assessment_spaces,route_probability
+Riverside General,True,FAST,21,0.5
+North Valley Medical,True,FAST,18,0.58
+Prairie Health Centre,True,FAST,22,0.46
+Lakeside Regional,True,FAST,16,0.46
+Foothills Community,True,FAST,24,0.48
+Meadowview Hospital,True,FAST,22,0.52
+Stony Creek Medical,True,FAST,18,0.51
+Aspen Ridge Hospital,True,FAST,21,0.57
+Maple Grove Medical,True,FAST,17,0.58
+Parkland General,True,FAST,18,0.47

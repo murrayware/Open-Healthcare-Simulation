@@ -1,0 +1,48 @@
+{
+  "name": "client",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "lint": "eslint .",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "@emotion/react": "^11.14.0",
+    "@emotion/styled": "^11.14.1",
+    "@mui/icons-material": "^7.3.2",
+    "@mui/material": "^7.3.2",
+    "@mui/x-date-pickers": "^8.11.2",
+    "@tailwindcss/vite": "^4.1.13",
+    "apexcharts": "^5.3.5",
+    "axios": "^1.12.2",
+    "chart.js": "^4.5.0",
+    "chartjs-plugin-datalabels": "^2.2.0",
+    "chartjs-plugin-dragdata": "^2.3.1",
+    "dayjs": "^1.11.18",
+    "leaflet": "^1.9.4",
+    "react": "^19.1.1",
+    "react-apexcharts": "^1.7.0",
+    "react-chartjs-2": "^5.3.0",
+    "react-dom": "^19.1.1",
+    "react-leaflet": "^5.0.0",
+    "react-router-dom": "^7.9.4",
+    "uuid": "^13.0.0"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.33.0",
+    "@types/react": "^19.1.10",
+    "@types/react-dom": "^19.1.7",
+    "@vitejs/plugin-react": "^5.0.0",
+    "autoprefixer": "^10.4.21",
+    "eslint": "^9.33.0",
+    "eslint-plugin-react-hooks": "^5.2.0",
+    "eslint-plugin-react-refresh": "^0.4.20",
+    "globals": "^16.3.0",
+    "postcss": "^8.5.6",
+    "tailwindcss": "^4.1.13",
+    "vite": "^7.1.2"
+  }
+}

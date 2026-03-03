@@ -1,0 +1,11 @@
+hospital,has_xray,has_ct,has_us,transfer_only_admit,external_di_roundtrip,ext_di_low,ext_di_high,admit_transfer_low,admit_transfer_high
+Riverside General,True,True,True,False,True,90,180,90,180
+North Valley Medical,True,False,False,False,True,90,180,90,180
+Prairie Health Centre,True,False,False,False,True,90,180,90,180
+Lakeside Regional,False,False,True,False,True,90,180,90,180
+Foothills Community,True,True,True,False,True,90,180,90,180
+Meadowview Hospital,True,False,False,False,True,90,180,90,180
+Stony Creek Medical,True,False,False,False,True,90,180,90,180
+Aspen Ridge Hospital,True,True,False,False,True,90,180,90,180
+Maple Grove Medical,True,False,True,False,True,90,180,90,180
+Parkland General,True,True,True,False,True,90,180,90,180

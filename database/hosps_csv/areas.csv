@@ -1,0 +1,11 @@
+hospital,area_name,beds,nurse_model,nurse_ratio,lab_support
+Riverside General,A,12,ratio,1.5,True
+North Valley Medical,A,10,ratio,1.5,True
+Prairie Health Centre,A,10,ratio,2,True
+Lakeside Regional,A,13,ratio,2.5,True
+Foothills Community,A,15,ratio,1.5,True
+Meadowview Hospital,A,12,ratio,2,True
+Stony Creek Medical,A,10,ratio,1.5,True
+Aspen Ridge Hospital,A,16,ratio,2.5,True
+Maple Grove Medical,A,11,ratio,2.5,True
+Parkland General,A,11,ratio,2,True
