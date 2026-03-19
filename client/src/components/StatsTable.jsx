@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React from "react";
 import { 
   Table, 
   TableBody, 
@@ -8,10 +8,9 @@ import {
   TableRow, 
   Paper,
   Typography,
-  Tabs,
-  Tab,
   Box
 } from "@mui/material";
+import { useAppTheme } from "../theme/useTheme";
 
 /**
  * Generic Statistics Table Component
@@ -24,15 +23,8 @@ const StatsTable = ({
   filterFunction = null,
   title = "Statistics"
 }) => {
-  const [activeDataTab, setActiveDataTab] = useState(adjustedMetrics ? "adjusted" : "default");
-  
-  const handleDataTabChange = (event, newValue) => {
-    setActiveDataTab(newValue);
-  };
-
-  const currentMetrics = activeDataTab === "adjusted" && adjustedMetrics ? adjustedMetrics : defaultMetrics;
-  
-  if (!currentMetrics || !currentMetrics.metrics_table) {
+  const theme = useAppTheme();
+  if ((!defaultMetrics || !defaultMetrics.metrics_table) && (!adjustedMetrics || !adjustedMetrics.metrics_table)) {
     return (
       <div className="flex items-center justify-center h-64">
         <Typography variant="body1" color="text.secondary">
@@ -41,11 +33,6 @@ const StatsTable = ({
       </div>
     );
   }
-
-  // Extract data using provided filter function or use all data
-  const filteredData = filterFunction 
-    ? currentMetrics.metrics_table.filter(filterFunction)
-    : currentMetrics.metrics_table;
   
   // Calculate statistics for each metric
   const calculateStats = (data, field) => {
@@ -66,7 +53,7 @@ const StatsTable = ({
     return { mean, median, p75, p90, min, max };
   };
 
-  // Calculate stats for both default and adjusted (if available) for comparison
+  // Calculate stats for both default and adjusted
   const defaultFilteredData = filterFunction && defaultMetrics?.metrics_table
     ? defaultMetrics.metrics_table.filter(filterFunction)
     : defaultMetrics?.metrics_table || [];
@@ -75,32 +62,62 @@ const StatsTable = ({
     ? adjustedMetrics.metrics_table.filter(filterFunction)
     : adjustedMetrics?.metrics_table || [];
   
-  const statsData = metricsConfig.map(metric => {
-    const currentStats = calculateStats(filteredData, metric.key);
-    let defaultStats = null;
-    let comparison = null;
-    
-    // If we're showing adjusted data, calculate default stats for comparison
-    if (activeDataTab === "adjusted" && adjustedMetrics && defaultMetrics) {
-      defaultStats = calculateStats(defaultFilteredData, metric.key);
-      if (currentStats && defaultStats) {
+  const statsData = metricsConfig.flatMap(metric => {
+    const rows = [];
+    const defaultStats = defaultMetrics?.metrics_table
+      ? calculateStats(defaultFilteredData, metric.key)
+      : null;
+    const adjustedStats = adjustedMetrics?.metrics_table
+      ? calculateStats(adjustedFilteredData, metric.key)
+      : null;
+
+    if (defaultMetrics?.metrics_table) {
+      rows.push({
+        ...metric,
+        scenario: "Default",
+        stats: defaultStats,
+        comparison: null
+      });
+    }
+
+    if (adjustedMetrics?.metrics_table) {
+      let comparison = null;
+      if (adjustedStats && defaultStats) {
         comparison = {
-          mean: currentStats.mean - defaultStats.mean,
-          median: currentStats.median - defaultStats.median,
-          p75: currentStats.p75 - defaultStats.p75,
-          p90: currentStats.p90 - defaultStats.p90,
-          min: currentStats.min - defaultStats.min,
-          max: currentStats.max - defaultStats.max
+          mean: adjustedStats.mean - defaultStats.mean,
+          median: adjustedStats.median - defaultStats.median,
+          p75: adjustedStats.p75 - defaultStats.p75,
+          p90: adjustedStats.p90 - defaultStats.p90,
+          min: adjustedStats.min - defaultStats.min,
+          max: adjustedStats.max - defaultStats.max
         };
       }
+
+      rows.push({
+        ...metric,
+        scenario: "Adjusted",
+        stats: adjustedStats,
+        comparison
+      });
     }
-    
-    return {
-      ...metric,
-      stats: currentStats,
-      comparison
-    };
+
+    return rows;
   });
+
+  const groupedStatsData = statsData.reduce((acc, row) => {
+    const existing = acc.find(group => group.key === row.key);
+    if (existing) {
+      existing.rows.push(row);
+    } else {
+      acc.push({
+        key: row.key,
+        label: row.label,
+        description: row.description,
+        rows: [row]
+      });
+    }
+    return acc;
+  }, []);
 
   const formatValue = (value, unit = "min") => {
     if (value === null || value === undefined) return 'N/A';
@@ -108,224 +125,281 @@ const StatsTable = ({
     return `${roundedValue} ${unit}`;
   };
 
-  const renderValueWithComparison = (value, comparisonValue, unit = "min") => {
+  const renderValueWithComparison = (value, comparisonValue, unit = "min", isDefaultRow = false) => {
     if (value === null || value === undefined) return 'N/A';
-    
+
     const formattedValue = formatValue(value, unit);
-    
-    // Only show comparison if we're on adjusted tab and have comparison data
-    if (activeDataTab === "adjusted" && comparisonValue !== null && comparisonValue !== undefined) {
-      const absChange = Math.abs(comparisonValue);
-      const isSignificant = absChange >= 0.1; // Only show change if >= 0.1 units
-      
-      if (!isSignificant) {
-        return (
-          <Box textAlign="right">
-            <Typography sx={{ fontFamily: 'monospace', fontSize: '0.875rem' }}>
-              {formattedValue}
-            </Typography>
-            <Typography sx={{ 
-              fontSize: '0.65rem', 
-              color: 'text.disabled',
-              lineHeight: 1
-            }}>
-              — no change
-            </Typography>
-          </Box>
-        );
-      }
-      
-      const isImprovement = comparisonValue < 0; // Lower values are generally better
-      const changeAmount = Math.round(Math.abs(comparisonValue) * 10) / 10;
-      const signSymbol = isImprovement ? '-' : '+';
-      const changeColor = isImprovement ? 'success.main' : 'error.main';
-      
+
+    if (comparisonValue === null || comparisonValue === undefined) {
       return (
-        <Box textAlign="right">
-          <Typography sx={{ fontFamily: 'monospace', fontSize: '0.875rem' }}>
+        <Box
+          textAlign="right"
+          sx={{
+            opacity: isDefaultRow ? 0.35 : 1,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'flex-end',
+            minHeight: 32
+          }}
+        >
+          <Typography sx={{ fontSize: '0.875rem' }}>
             {formattedValue}
-          </Typography>
-          <Typography sx={{ 
-            fontSize: '0.65rem', 
-            color: changeColor,
-            lineHeight: 1,
-            fontWeight: 500
-          }}>
-            {signSymbol} {changeAmount} {unit}
           </Typography>
         </Box>
       );
     }
-    
-    return formattedValue;
+
+    const absChange = Math.abs(comparisonValue);
+    const isSignificant = absChange >= 0.1;
+
+    if (!isSignificant) {
+      return (
+        <Box textAlign="right" sx={{ opacity: isDefaultRow ? 0.35 : 1 }}>
+          <Typography sx={{ fontSize: '0.875rem' }}>
+            {formattedValue}
+          </Typography>
+          <Typography sx={{ 
+            fontSize: '0.65rem', 
+            color: 'text.disabled',
+            lineHeight: 1
+          }}>
+            — no change
+          </Typography>
+        </Box>
+      );
+    }
+
+    const isImprovement = comparisonValue < 0;
+    const changeAmount = Math.round(Math.abs(comparisonValue) * 10) / 10;
+    const signSymbol = isImprovement ? '-' : '+';
+    const changeColor = isImprovement ? 'success.main' : 'error.main';
+
+    return (
+      <Box textAlign="right" sx={{ opacity: isDefaultRow ? 0.35 : 1 }}>
+        <Typography sx={{ fontSize: '0.875rem' }}>
+          {formattedValue}
+        </Typography>
+        <Typography sx={{ 
+          fontSize: '0.65rem', 
+          color: changeColor,
+          lineHeight: 1,
+          fontWeight: 500
+        }}>
+          {signSymbol} {changeAmount} {unit}
+        </Typography>
+      </Box>
+    );
   };
 
   return (
     <Box>
-      {/* Data Source Tabs */}
-      <Box sx={{ borderBottom: 1, borderColor: 'divider', mb: 2 }}>
-        <Tabs 
-          value={activeDataTab} 
-          onChange={handleDataTabChange}
-          variant="scrollable"
-          scrollButtons="auto"
-        >
-          <Tab value="default" label="Default" />
-          {adjustedMetrics && (
-            <Tab value="adjusted" label="Adjusted" />
-          )}
-        </Tabs>
+      {/* Heading */}
+      <Box sx={{ 
+        display: 'flex', 
+        justifyContent: 'flex-start',
+        alignItems: 'flex-end',
+        mb: '-1px',
+        position: 'relative',
+        zIndex: 2
+      }}>
+        <Typography variant="subtitle2" fontWeight="bold" color="text.primary" sx={{ mb: 1 }}>
+          Statistics
+        </Typography>
       </Box>
 
       {/* Statistics Table */}
-      <TableContainer component={Paper} elevation={1} sx={{ maxHeight: 400 }}>
+      <TableContainer component={Paper} elevation={0} sx={{ maxHeight: 400, backgroundColor: theme.colors.background.paper }}>
         <Table size="small" stickyHeader sx={{ '& .MuiTableCell-root': { py: 0.75, px: 2 } }}>
           <TableHead>
+            {/* Column headers */}
             <TableRow>
               <TableCell sx={{ 
-                fontWeight: 'bold', 
+                fontWeight: 'bold',
+                color: theme.colors.text.primary,
                 minWidth: 200, 
-                backgroundColor: 'grey.500',
+                backgroundColor: theme.colors.background.elevated,
                 borderBottom: 2,
-                borderColor: 'divider'
+                borderColor: theme.colors.divider || 'rgba(255,255,255,0.12)',
+                py: 0.75
               }}>
                 Metric
               </TableCell>
-              <TableCell align="right" sx={{ 
-                fontWeight: 'bold', 
-                minWidth: 70,
-                backgroundColor: 'grey.500',
+              <TableCell sx={{ 
+                fontWeight: 'bold',
+                color: theme.colors.text.primary,
+                minWidth: 90,
+                backgroundColor: theme.colors.background.elevated,
                 borderBottom: 2,
-                borderColor: 'divider'
+                borderColor: theme.colors.divider || 'rgba(255,255,255,0.12)',
+                py: 0.5
+              }}>
+                Scenario
+              </TableCell>
+              <TableCell align="right" sx={{ 
+                fontWeight: 'bold',
+                color: theme.colors.text.primary,
+                minWidth: 70,
+                backgroundColor: theme.colors.background.elevated,
+                borderBottom: 2,
+                borderColor: theme.colors.divider || 'rgba(255,255,255,0.12)',
+                py: 0.5
               }}>
                 Mean
               </TableCell>
               <TableCell align="right" sx={{ 
-                fontWeight: 'bold', 
+                fontWeight: 'bold',
+                color: theme.colors.text.primary,
                 minWidth: 70,
-                backgroundColor: 'grey.500',
+                backgroundColor: theme.colors.background.elevated,
                 borderBottom: 2,
-                borderColor: 'divider'
+                borderColor: theme.colors.divider || 'rgba(255,255,255,0.12)',
+                py: 0.5
               }}>
                 Median
               </TableCell>
               <TableCell align="right" sx={{ 
-                fontWeight: 'bold', 
+                fontWeight: 'bold',
+                color: theme.colors.text.primary,
                 minWidth: 70,
-                backgroundColor: 'grey.500',
+                backgroundColor: theme.colors.background.elevated,
                 borderBottom: 2,
-                borderColor: 'divider'
+                borderColor: theme.colors.divider || 'rgba(255,255,255,0.12)',
+                py: 0.5
               }}>
                 P75
               </TableCell>
               <TableCell align="right" sx={{ 
-                fontWeight: 'bold', 
+                fontWeight: 'bold',
+                color: theme.colors.text.primary,
                 minWidth: 70,
-                backgroundColor: 'grey.500',
+                backgroundColor: theme.colors.background.elevated,
                 borderBottom: 2,
-                borderColor: 'divider'
+                borderColor: theme.colors.divider || 'rgba(255,255,255,0.12)',
+                py: 0.5
               }}>
                 P90
               </TableCell>
               <TableCell align="right" sx={{ 
-                fontWeight: 'bold', 
+                fontWeight: 'bold',
+                color: theme.colors.text.primary,
                 minWidth: 70,
-                backgroundColor: 'grey.500',
+                backgroundColor: theme.colors.background.elevated,
                 borderBottom: 2,
-                borderColor: 'divider'
+                borderColor: theme.colors.divider || 'rgba(255,255,255,0.12)',
+                py: 0.5
               }}>
                 Min
               </TableCell>
               <TableCell align="right" sx={{ 
-                fontWeight: 'bold', 
+                fontWeight: 'bold',
+                color: theme.colors.text.primary,
                 minWidth: 70,
-                backgroundColor: 'grey.500',
+                backgroundColor: theme.colors.background.elevated,
                 borderBottom: 2,
-                borderColor: 'divider'
+                borderColor: theme.colors.divider || 'rgba(255,255,255,0.12)',
+                py: 0.5
               }}>
                 Max
               </TableCell>
             </TableRow>
           </TableHead>
           <TableBody>
-            {statsData.map((row, index) => (
-              <TableRow 
-                key={row.key} 
-                hover 
-                sx={{ 
-                  '&:hover': { backgroundColor: 'action.hover' }
-                }}
-              >
-                <TableCell component="th" scope="row" sx={{ borderRight: 1, borderColor: 'divider' }}>
-                  <Box>
-                    <Typography variant="body2" fontWeight="medium" sx={{ 
-                      lineHeight: 1.3,
-                      fontSize: '0.875rem'
-                    }}>
-                      {row.label}
-                    </Typography>
-                    <Typography variant="caption" color="text.secondary" sx={{ 
-                      lineHeight: 1.2,
-                      fontSize: '0.75rem',
-                      display: 'block'
-                    }}>
-                      {row.description}
-                    </Typography>
-                  </Box>
-                </TableCell>
-                {row.stats ? (
-                  <>
-                    <TableCell align="right" sx={{ fontWeight: 500 }}>
-                      {renderValueWithComparison(
-                        row.stats.mean, 
-                        row.comparison?.mean,
-                        row.unit || "min"
-                      )}
+            {groupedStatsData.map((group) => (
+              <React.Fragment key={group.key}>
+                {group.rows.map((row, rowIndex) => (
+                  (() => {
+                    const isLastRowInGroup = rowIndex === group.rows.length - 1;
+                    const dividerColor = theme.colors.divider || 'rgba(255,255,255,0.12)';
+                    const rowBorder = isLastRowInGroup
+                      ? `1px solid ${dividerColor}`
+                      : 'none';
+                    const rowBackground = row.scenario === 'Adjusted'
+                      ? theme.colors.background.elevated
+                      : theme.colors.background.paper;
+
+                    return (
+                  <TableRow 
+                    key={`${row.key}-${row.scenario}`} 
+                    hover 
+                    sx={{ 
+                      height: 44,
+                      backgroundColor: rowBackground,
+                      '&:hover': { backgroundColor: theme.colors.background.surface },
+                      '& .MuiTableCell-root:not([rowspan])': {
+                        verticalAlign: 'middle',
+                        borderBottom: rowBorder,
+                        backgroundColor: rowBackground
+                      }
+                    }}
+                  >
+                    {rowIndex === 0 && (
+                      <TableCell
+                        component="th"
+                        scope="row"
+                        rowSpan={group.rows.length}
+                        sx={{ 
+                          borderRight: `1px solid ${dividerColor}`,
+                          verticalAlign: 'top',
+                          borderBottom: `1px solid ${dividerColor}`,
+                          backgroundColor: theme.colors.background.paper
+                        }}
+                      >
+                        <Box>
+                          <Typography variant="body2" fontWeight="medium" sx={{ 
+                            lineHeight: 1.3,
+                            fontSize: '0.875rem'
+                          }}>
+                            {group.label}
+                          </Typography>
+                          <Typography variant="caption" color="text.secondary" sx={{ 
+                            lineHeight: 1.2,
+                            fontSize: '0.75rem',
+                            display: 'block'
+                          }}>
+                            {group.description}
+                          </Typography>
+                        </Box>
+                      </TableCell>
+                    )}
+
+                    <TableCell sx={{ borderRight: `1px solid ${dividerColor}` }}>
+                      <Typography variant="body2" fontWeight="medium" sx={{ fontSize: '0.8rem' }}>
+                        {row.scenario}
+                      </Typography>
                     </TableCell>
-                    <TableCell align="right">
-                      {renderValueWithComparison(
-                        row.stats.median, 
-                        row.comparison?.median,
-                        row.unit || "min"
-                      )}
-                    </TableCell>
-                    <TableCell align="right">
-                      {renderValueWithComparison(
-                        row.stats.p75, 
-                        row.comparison?.p75,
-                        row.unit || "min"
-                      )}
-                    </TableCell>
-                    <TableCell align="right">
-                      {renderValueWithComparison(
-                        row.stats.p90, 
-                        row.comparison?.p90,
-                        row.unit || "min"
-                      )}
-                    </TableCell>
-                    <TableCell align="right">
-                      {renderValueWithComparison(
-                        row.stats.min, 
-                        row.comparison?.min,
-                        row.unit || "min"
-                      )}
-                    </TableCell>
-                    <TableCell align="right">
-                      {renderValueWithComparison(
-                        row.stats.max, 
-                        row.comparison?.max,
-                        row.unit || "min"
-                      )}
-                    </TableCell>
-                  </>
-                ) : (
-                  <TableCell align="center" colSpan={6}>
-                    <Typography variant="body2" color="text.secondary" sx={{ fontStyle: 'italic' }}>
-                      No data available
-                    </Typography>
-                  </TableCell>
-                )}
-              </TableRow>
+                    {row.stats ? (
+                      <>
+                        <TableCell align="right" sx={{ fontWeight: 500 }}>
+                          {renderValueWithComparison(row.stats.mean, row.comparison?.mean, row.unit || "min", row.scenario === "Default")}
+                        </TableCell>
+                        <TableCell align="right">
+                          {renderValueWithComparison(row.stats.median, row.comparison?.median, row.unit || "min", row.scenario === "Default")}
+                        </TableCell>
+                        <TableCell align="right">
+                          {renderValueWithComparison(row.stats.p75, row.comparison?.p75, row.unit || "min", row.scenario === "Default")}
+                        </TableCell>
+                        <TableCell align="right">
+                          {renderValueWithComparison(row.stats.p90, row.comparison?.p90, row.unit || "min", row.scenario === "Default")}
+                        </TableCell>
+                        <TableCell align="right">
+                          {renderValueWithComparison(row.stats.min, row.comparison?.min, row.unit || "min", row.scenario === "Default")}
+                        </TableCell>
+                        <TableCell align="right">
+                          {renderValueWithComparison(row.stats.max, row.comparison?.max, row.unit || "min", row.scenario === "Default")}
+                        </TableCell>
+                      </>
+                    ) : (
+                      <TableCell align="center" colSpan={6}>
+                        <Typography variant="body2" color="text.secondary" sx={{ fontStyle: 'italic' }}>
+                          No data available
+                        </Typography>
+                      </TableCell>
+                    )}
+                  </TableRow>
+                    );
+                  })()
+                ))}
+              </React.Fragment>
             ))}
           </TableBody>
         </Table>

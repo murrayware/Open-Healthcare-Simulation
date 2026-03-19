@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import SettingsCard from "../../../components/SettingsCard";
 import SettingsModal from "../../../components/SettingsModal";
 import {
@@ -47,7 +47,7 @@ export const defaultFastTrack = {
   no_critical_ems: true,
 };
 
-const EDAreasSection = ({ edAreas, setEdAreas, fastTrack, setFastTrack }) => {
+const EDAreasSection = ({ edAreas, setEdAreas, fastTrack, setFastTrack, quickAction = null }) => {
   const [modalOpen, setModalOpen] = useState(false);
   const [fastTrackModalOpen, setFastTrackModalOpen] = useState(false);
   const [editingKey, setEditingKey] = useState(null);
@@ -55,6 +55,7 @@ const EDAreasSection = ({ edAreas, setEdAreas, fastTrack, setFastTrack }) => {
   const [fastTrackForm, setFastTrackForm] = useState(
     fastTrack || defaultFastTrack
   );
+  const lastHandledQuickActionToken = useRef(null);
 
   // Convert areas object to array for display
   const areasArray = Object.values(edAreas || {});
@@ -66,6 +67,16 @@ const EDAreasSection = ({ edAreas, setEdAreas, fastTrack, setFastTrack }) => {
     setForm(defaultEDArea);
     setModalOpen(true);
   };
+
+  useEffect(() => {
+    if (quickAction?.target !== "add-ed-area" || !quickAction?.token) return;
+    if (lastHandledQuickActionToken.current === quickAction.token) return;
+
+    lastHandledQuickActionToken.current = quickAction.token;
+    setEditingKey(null);
+    setForm(defaultEDArea);
+    setModalOpen(true);
+  }, [quickAction?.token, quickAction?.target]);
 
   const openEditModal = (areaKey) => {
     setEditingKey(areaKey);
@@ -141,7 +152,7 @@ const EDAreasSection = ({ edAreas, setEdAreas, fastTrack, setFastTrack }) => {
         </div>
       ) : (
         <TableContainer >
-          <Table stickyHeader size='small'>
+          <Table stickyHeader size='small' component={Paper}>
             <TableHead>
               <TableRow>
                 <TableCell>Name</TableCell>

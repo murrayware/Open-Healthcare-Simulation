@@ -29,6 +29,7 @@ export function SimulationWorkspaceProvider({ children }) {
     if (saved) {
       try {
         const parsed = JSON.parse(saved);
+        console.log('[WORKSPACE] Loaded simulations from localStorage:', parsed.simulations?.map(s => ({ id: s.id, name: s.name })));
         setSimulations(parsed.simulations || []);
         setActiveSimulationId(parsed.activeSimulationId || null);
       } catch (err) {
@@ -39,13 +40,14 @@ export function SimulationWorkspaceProvider({ children }) {
 
   // Save simulations to localStorage whenever they change
   useEffect(() => {
+    console.log('[WORKSPACE] Saving simulations to localStorage:', simulations.map(s => ({ id: s.id, name: s.name })));
     try {
       // Create a lightweight version for storage (exclude large metrics data)
       const lightweightSimulations = simulations.map(sim => ({
         ...sim,
         // Keep metrics references but store them separately if needed
-        defaultMetrics: sim.defaultMetrics ? 'stored' : null,
-        adjustedMetrics: sim.adjustedMetrics ? 'stored' : null,
+        defaultMetrics: null, // Don't store metrics in localStorage
+        adjustedMetrics: null, // Don't store metrics in localStorage
       }));
 
       const dataToStore = {
@@ -72,6 +74,8 @@ export function SimulationWorkspaceProvider({ children }) {
             hospitalKey: sim.hospitalKey,
             compareId: sim.compareId,
             settings: sim.settings,
+            defaultSettings: sim.defaultSettings, // Keep defaultSettings for reset functionality
+            isFromTemplate: sim.isFromTemplate,
             // Exclude metrics entirely
             defaultMetrics: null,
             adjustedMetrics: null,
@@ -91,8 +95,9 @@ export function SimulationWorkspaceProvider({ children }) {
   }, [simulations, activeSimulationId]);
 
   // Create a new simulation workspace
-  const createSimulation = (name, hospitalData = null) => {
+  const createSimulation = (name, hospitalData = null, templateName = null) => {
     const id = uuidv4();
+    console.log('[WORKSPACE] Creating new simulation with ID:', id);
     const newSimulation = {
       id,
       name: name || `Simulation ${simulations.length + 1}`,
@@ -104,8 +109,13 @@ export function SimulationWorkspaceProvider({ children }) {
       adjustedMetrics: null,
       compareId: null,
       
+      // Track if created from template (for UI logic)
+      isFromTemplate: hospitalData !== null,
+      templateName: templateName, // Store the hospital template name
+      
       // Settings state (using backend format directly)
       hospitalKey: 'hospital-a', // default
+      defaultSettings: null, // Settings used to generate defaultMetrics
       settings: {
         // Backend format structure
         doctors: [], // Instead of physicians
@@ -177,6 +187,25 @@ export function SimulationWorkspaceProvider({ children }) {
     return id;
   };
 
+  // Restore a simulation with a specific ID (used when loading from database)
+  const restoreSimulation = (simulationData) => {
+    console.log('[WORKSPACE] Restoring simulation with ID:', simulationData.id);
+    
+    // Check if simulation already exists
+    const existing = simulations.find(sim => sim.id === simulationData.id);
+    if (existing) {
+      console.log('[WORKSPACE] Simulation already exists, updating it');
+      updateSimulation(simulationData.id, simulationData);
+      return simulationData.id;
+    }
+    
+    // Add the simulation with its original ID
+    setSimulations(prev => [...prev, simulationData]);
+    setActiveSimulationId(simulationData.id);
+    
+    return simulationData.id;
+  };
+
   // Get simulation by ID
   const getSimulation = (id) => {
     return simulations.find(sim => sim.id === id) || null;
@@ -189,6 +218,10 @@ export function SimulationWorkspaceProvider({ children }) {
 
   // Update simulation data
   const updateSimulation = (id, updates) => {
+    console.log('[WORKSPACE] Updating simulation:', id, 'with updates:', Object.keys(updates));
+    if (updates.id && updates.id !== id) {
+      console.error('[WORKSPACE] WARNING: Attempting to change simulation ID from', id, 'to', updates.id);
+    }
     setSimulations(prev => prev.map(sim => 
       sim.id === id 
         ? { 
@@ -202,12 +235,15 @@ export function SimulationWorkspaceProvider({ children }) {
 
   // Switch to a different simulation
   const switchToSimulation = (id) => {
+    console.log('[WORKSPACE] Switching to simulation:', id);
     const simulation = getSimulation(id);
     if (simulation) {
+      console.log('[WORKSPACE] Found simulation:', { id: simulation.id, name: simulation.name });
       setActiveSimulationId(id);
       updateSimulation(id, { lastAccessed: new Date().toISOString() });
       return simulation;
     }
+    console.warn('[WORKSPACE] Simulation not found:', id);
     return null;
   };
 
@@ -229,6 +265,14 @@ export function SimulationWorkspaceProvider({ children }) {
   // Rename a simulation
   const renameSimulation = (id, newName) => {
     updateSimulation(id, { name: newName });
+  };
+
+  // Clear all simulations (useful when resetting database)
+  const clearAllSimulations = () => {
+    console.log('[WORKSPACE] Clearing all simulations');
+    setSimulations([]);
+    setActiveSimulationId(null);
+    localStorage.removeItem('simulation-workspaces');
   };
 
   // Clone/duplicate a simulation
@@ -279,12 +323,14 @@ export function SimulationWorkspaceProvider({ children }) {
     
     // Actions
     createSimulation,
+    restoreSimulation,
     updateSimulation,
     switchToSimulation,
     closeSimulation,
     renameSimulation,
     cloneSimulation,
     cleanupOldSimulations,
+    clearAllSimulations,
     
     // Utilities
     getStorageInfo,

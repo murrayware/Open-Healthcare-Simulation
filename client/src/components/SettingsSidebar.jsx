@@ -10,8 +10,10 @@ import {
   CircularProgress,
   Typography,
   Badge,
+  Tooltip,
 } from "@mui/material";
 import ChevronRightIcon from "@mui/icons-material/ChevronRight";
+import CloseIcon from "@mui/icons-material/Close";
 import SettingsIcon from "@mui/icons-material/Settings";
 import LocalHospitalIcon from "@mui/icons-material/LocalHospital";
 import PersonIcon from "@mui/icons-material/Person";
@@ -30,7 +32,9 @@ const SettingsDrawerContent = React.lazy(() =>
 
 const SettingsSidebar = ({ 
   simulation,
-  onSettingsChange 
+  onSettingsChange,
+  showTooltip = false,
+  onTooltipDismiss
 }) => {
   const theme = useTheme();
   const appTheme = useAppTheme();
@@ -38,9 +42,27 @@ const SettingsSidebar = ({
   const [open, setOpen] = useState(false);
   const [shouldRenderContent, setShouldRenderContent] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const [quickAction, setQuickAction] = useState(null);
 
-  const onToggle = () => setOpen(!open);
-  const onClose = () => setOpen(false);
+  const onToggle = () => {
+    setOpen(!open);
+    // Dismiss tooltip when opening settings drawer
+    if (!open && onTooltipDismiss) {
+      onTooltipDismiss();
+    }
+  };
+  const onClose = () => {
+    setOpen(false);
+    setQuickAction(null);
+  };
+
+  const handleQuickAction = (target) => {
+    setOpen(true);
+    setQuickAction({ target, token: Date.now() });
+    if (onTooltipDismiss) {
+      onTooltipDismiss();
+    }
+  };
 
   // Only render content when sidebar is open, with a small delay to prevent premature loading
   useEffect(() => {
@@ -124,6 +146,7 @@ const SettingsSidebar = ({
                     onClose={onClose}
                     simulation={simulation}
                     onSettingsChange={onSettingsChange}
+                    quickAction={quickAction}
                   />
                 </React.Suspense>
               )}
@@ -176,6 +199,7 @@ const SettingsSidebar = ({
                     onClose={onClose}
                     simulation={simulation}
                     onSettingsChange={onSettingsChange}
+                    quickAction={quickAction}
                   />
                 </React.Suspense>
               )}
@@ -185,67 +209,250 @@ const SettingsSidebar = ({
           {/* Collapsed Content */}
           {!open && (
             <div className="h-full flex flex-col items-center py-4 space-y-4">
-              <Button
-                onClick={onToggle}
-                variant='contained'
-                sx={{
-                  borderTopRightRadius: 0,
-                  borderBottomRightRadius: 0,
-                  height: 40,
+              <Tooltip
+                open={showTooltip}
+                title={
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                    <span>Click here to configure hospital settings before running</span>
+                    {onTooltipDismiss && (
+                      <IconButton
+                        size="small"
+                        onClick={onTooltipDismiss}
+                        sx={{ 
+                          color: 'inherit', 
+                          padding: 0,
+                          minWidth: 'auto',
+                          '&:hover': { backgroundColor: 'rgba(255,255,255,0.1)' }
+                        }}
+                      >
+                        <CloseIcon fontSize="small" />
+                      </IconButton>
+                    )}
+                  </Box>
+                }
+                arrow
+                placement="right"
+                componentsProps={{
+                  tooltip: {
+                    sx: {
+                      bgcolor: 'primary.main',
+                      '& .MuiTooltip-arrow': {
+                        color: 'primary.main',
+                      },
+                      fontSize: '0.875rem',
+                      padding: '8px 12px'
+                    }
+                  }
                 }}
               >
-                <SettingsIcon 
-                />
-              </Button>
+                <Button
+                  onClick={onToggle}
+                  variant='contained'
+                  sx={{
+                    borderTopRightRadius: 0,
+                    borderBottomRightRadius: 0,
+                    height: 40,
+                  }}
+                >
+                  <SettingsIcon 
+                  />
+                </Button>
+              </Tooltip>
               
               {/* Settings Summary */}
               {settingsSummary && (
                 <div className="flex flex-col items-center space-y-3 mt-4">
                   {/* Physicians */}
-                  <div className="flex flex-col items-center">
-                    <Badge
-                      badgeContent={settingsSummary.physicians}
-                      color="primary"
-                      sx={{
-                        '& .MuiBadge-badge': {
-                          right: -3,
-                          top: 3,
-                          fontSize: '0.7rem',
-                          minWidth: 16,
-                          height: 16,
-                        },
-                      }}
-                    >
-                      <PersonIcon sx={{ color: appTheme.colors.text.secondary, fontSize: 20 }} />
-                    </Badge>
-                    <Typography variant="caption" sx={{ color: appTheme.colors.text.secondary, fontSize: '0.6rem', mt: 0.5 }}>
-                      Docs
+                  <Box
+                    role="button"
+                    tabIndex={0}
+                    onClick={() => handleQuickAction("add-physician")}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' || e.key === ' ') {
+                        e.preventDefault();
+                        handleQuickAction("add-physician");
+                      }
+                    }}
+                    sx={{
+                      width: 52,
+                      display: 'flex',
+                      flexDirection: 'column',
+                      alignItems: 'center',
+                      gap: 0.5,
+                      cursor: 'pointer',
+                      borderRadius: 2,
+                      p: 0.5,
+                      transition: 'all 180ms ease',
+                      '&:focus-visible': {
+                        outline: `2px solid ${appTheme.colors.primary.main}`,
+                        outlineOffset: 2,
+                      },
+                      '& .quick-icon-wrap': {
+                        width: 36,
+                        height: 36,
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        position: 'relative',
+                        transition: 'all 180ms ease',
+                      },
+                      '& .quick-badge': {
+                        transition: 'all 140ms ease',
+                      },
+                      '& .quick-icon': {
+                        color: appTheme.colors.text.secondary,
+                        fontSize: 20,
+                        transition: 'all 140ms ease',
+                      },
+                      '& .quick-label': {
+                        color: appTheme.colors.text.secondary,
+                        fontSize: '0.6rem',
+                        transition: 'all 140ms ease',
+                      },
+                      '& .quick-plus': {
+                        position: 'absolute',
+                        color: '#ffffff',
+                        fontWeight: 700,
+                        fontSize: '1rem',
+                        opacity: 0,
+                        transform: 'scale(0.7)',
+                        transition: 'all 140ms ease',
+                        pointerEvents: 'none',
+                      },
+                      '&:hover .quick-icon-wrap, &:focus-visible .quick-icon-wrap': {
+                        borderRadius: 2,
+                        backgroundColor: appTheme.colors.primary.main,
+                      },
+                      '&:hover .quick-badge, &:focus-visible .quick-badge': {
+                        opacity: 0,
+                        transform: 'scale(0.85)',
+                      },
+                      '&:hover .quick-plus, &:focus-visible .quick-plus': {
+                        opacity: 1,
+                        transform: 'scale(1)',
+                      },
+                    }}
+                  >
+                    <Box className="quick-icon-wrap">
+                      <Badge
+                        className="quick-badge"
+                        badgeContent={settingsSummary.physicians}
+                        color="primary"
+                        sx={{
+                          '& .MuiBadge-badge': {
+                            right: -3,
+                            top: 3,
+                            fontSize: '0.7rem',
+                            minWidth: 16,
+                            height: 16,
+                          },
+                        }}
+                      >
+                        <PersonIcon className="quick-icon" />
+                      </Badge>
+                      <Typography component="span" className="quick-plus">+</Typography>
+                    </Box>
+                    <Typography variant="caption" className="quick-label">
+                      ED Docs
                     </Typography>
-                  </div>
+                  </Box>
 
                   {/* ED Areas */}
-                  <div className="flex flex-col items-center">
-                    <Badge
-                      badgeContent={settingsSummary.edAreas}
-                      color="primary"
-                      sx={{
-                        '& .MuiBadge-badge': {
-                          right: -3,
-                          top: 3,
-                          fontSize: '0.7rem',
-                          minWidth: 16,
-                          height: 16,
-                        },
-                      }}
-                    >
-                      <LocalHospitalIcon sx={{ color: appTheme.colors.text.secondary, fontSize: 20 }} />
-                    </Badge>
-                    <Typography variant="caption" sx={{ color: appTheme.colors.text.secondary, fontSize: '0.6rem', mt: 0.5 }}>
-                      Areas
+                  <Box
+                    role="button"
+                    tabIndex={0}
+                    onClick={() => handleQuickAction("add-ed-area")}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' || e.key === ' ') {
+                        e.preventDefault();
+                        handleQuickAction("add-ed-area");
+                      }
+                    }}
+                    sx={{
+                      width: 52,
+                      display: 'flex',
+                      flexDirection: 'column',
+                      alignItems: 'center',
+                      gap: 0.5,
+                      cursor: 'pointer',
+                      borderRadius: 2,
+                      p: 0.5,
+                      transition: 'all 180ms ease',
+                      '&:focus-visible': {
+                        outline: `2px solid ${appTheme.colors.primary.main}`,
+                        outlineOffset: 2,
+                      },
+                      '& .quick-icon-wrap': {
+                        width: 36,
+                        height: 36,
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        position: 'relative',
+                        transition: 'all 180ms ease',
+                      },
+                      '& .quick-badge': {
+                        transition: 'all 140ms ease',
+                      },
+                      '& .quick-icon': {
+                        color: appTheme.colors.text.secondary,
+                        fontSize: 20,
+                        transition: 'all 140ms ease',
+                      },
+                      '& .quick-label': {
+                        color: appTheme.colors.text.secondary,
+                        fontSize: '0.6rem',
+                        transition: 'all 140ms ease',
+                      },
+                      '& .quick-plus': {
+                        position: 'absolute',
+                        color: '#ffffff',
+                        fontWeight: 700,
+                        fontSize: '1rem',
+                        opacity: 0,
+                        transform: 'scale(0.7)',
+                        transition: 'all 140ms ease',
+                        pointerEvents: 'none',
+                      },
+                      '&:hover .quick-icon-wrap, &:focus-visible .quick-icon-wrap': {
+                        borderRadius: 2,
+                        backgroundColor: appTheme.colors.primary.main,
+                      },
+                      '&:hover .quick-badge, &:focus-visible .quick-badge': {
+                        opacity: 0,
+                        transform: 'scale(0.85)',
+                      },
+                      '&:hover .quick-plus, &:focus-visible .quick-plus': {
+                        opacity: 1,
+                        transform: 'scale(1)',
+                      },
+                    }}
+                  >
+                    <Box className="quick-icon-wrap">
+                      <Badge
+                        className="quick-badge"
+                        badgeContent={settingsSummary.edAreas}
+                        color="primary"
+                        sx={{
+                          '& .MuiBadge-badge': {
+                            right: -3,
+                            top: 3,
+                            fontSize: '0.7rem',
+                            minWidth: 16,
+                            height: 16,
+                          },
+                        }}
+                      >
+                        <LocalHospitalIcon className="quick-icon" />
+                      </Badge>
+                      <Typography component="span" className="quick-plus">+</Typography>
+                    </Box>
+                    <Typography variant="caption" className="quick-label">
+                     ED Areas
                     </Typography>
-                  </div>
+                  </Box>
 
-                  {/* EMS */}
+                  {/* EMS
                   {settingsSummary.ems > 0 && (
                     <div className="flex flex-col items-center">
                       <DirectionsCarIcon sx={{ color: appTheme.colors.success.main, fontSize: 20 }} />
@@ -253,31 +460,104 @@ const SettingsSidebar = ({
                         EMS
                       </Typography>
                     </div>
-                  )}
+                  )} */}
 
                   {/* Inpatient Units */}
-                  <div className="flex flex-col items-center">
-                    <Badge
-                      badgeContent={settingsSummary.inpatientUnits}
-                      color="primary"
-                      sx={{
-                        '& .MuiBadge-badge': {
-                          right: -3,
-                          top: 3,
-                          fontSize: '0.7rem',
-                          minWidth: 16,
-                          height: 16,
-                        },
-                      }}
-                    >
-                      <HotelIcon sx={{ color: appTheme.colors.text.secondary, fontSize: 20 }} />
-                    </Badge>
-                    <Typography variant="caption" sx={{ color: appTheme.colors.text.secondary, fontSize: '0.6rem', mt: 0.5 }}>
-                      Units
+                  <Box
+                    role="button"
+                    tabIndex={0}
+                    onClick={() => handleQuickAction("add-inpatient-unit")}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' || e.key === ' ') {
+                        e.preventDefault();
+                        handleQuickAction("add-inpatient-unit");
+                      }
+                    }}
+                    sx={{
+                      width: 52,
+                      display: 'flex',
+                      flexDirection: 'column',
+                      alignItems: 'center',
+                      gap: 0.5,
+                      cursor: 'pointer',
+                      borderRadius: 2,
+                      p: 0.5,
+                      transition: 'all 180ms ease',
+                      '&:focus-visible': {
+                        outline: `2px solid ${appTheme.colors.primary.main}`,
+                        outlineOffset: 2,
+                      },
+                      '& .quick-icon-wrap': {
+                        width: 36,
+                        height: 36,
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        position: 'relative',
+                        transition: 'all 180ms ease',
+                      },
+                      '& .quick-badge': {
+                        transition: 'all 140ms ease',
+                      },
+                      '& .quick-icon': {
+                        color: appTheme.colors.text.secondary,
+                        fontSize: 20,
+                        transition: 'all 140ms ease',
+                      },
+                      '& .quick-label': {
+                        color: appTheme.colors.text.secondary,
+                        fontSize: '0.6rem',
+                        transition: 'all 140ms ease',
+                      },
+                      '& .quick-plus': {
+                        position: 'absolute',
+                        color: '#ffffff',
+                        fontWeight: 700,
+                        fontSize: '1rem',
+                        opacity: 0,
+                        transform: 'scale(0.7)',
+                        transition: 'all 140ms ease',
+                        pointerEvents: 'none',
+                      },
+                      '&:hover .quick-icon-wrap, &:focus-visible .quick-icon-wrap': {
+                        borderRadius: 2,
+                        backgroundColor: appTheme.colors.primary.main,
+                      },
+                      '&:hover .quick-badge, &:focus-visible .quick-badge': {
+                        opacity: 0,
+                        transform: 'scale(0.85)',
+                      },
+                      '&:hover .quick-plus, &:focus-visible .quick-plus': {
+                        opacity: 1,
+                        transform: 'scale(1)',
+                      },
+                    }}
+                  >
+                    <Box className="quick-icon-wrap">
+                      <Badge
+                        className="quick-badge"
+                        badgeContent={settingsSummary.inpatientUnits}
+                        color="primary"
+                        sx={{
+                          '& .MuiBadge-badge': {
+                            right: -3,
+                            top: 3,
+                            fontSize: '0.7rem',
+                            minWidth: 16,
+                            height: 16,
+                          },
+                        }}
+                      >
+                        <HotelIcon className="quick-icon" />
+                      </Badge>
+                      <Typography component="span" className="quick-plus">+</Typography>
+                    </Box>
+                    <Typography variant="caption" className="quick-label">
+                      IP Units
                     </Typography>
-                  </div>
+                  </Box>
 
-                  {/* Capabilities */}
+                  {/* Capabilities
                   <div className="flex flex-col items-center">
                     <Badge
                       badgeContent={settingsSummary.capabilities}
@@ -297,7 +577,7 @@ const SettingsSidebar = ({
                     <Typography variant="caption" sx={{ color: appTheme.colors.text.secondary, fontSize: '0.6rem', mt: 0.5 }}>
                       Caps
                     </Typography>
-                  </div>
+                  </div> */}
                 </div>
               )}
               

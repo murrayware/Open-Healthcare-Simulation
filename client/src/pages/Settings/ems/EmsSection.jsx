@@ -14,12 +14,12 @@ export const defaultEms = {
   enabled: true,
   internal_generation: true,
   hours: 12,
-  hourly_lambda: [2, 3, 4, 5, 6, 7, 7, 6, 5, 4, 3, 2],
+  hourly_lambda: [1,1,2,2,2,3,3,3,3,3,3,2,2,2,2,1,1,1,1,1,1,1,1,1],
   ctas_mix: { 1: 0.03, 2: 0.12, 3: 0.45, 4: 0.35, 5: 0.05 },
   p_critical: 0.01,
   p_direct_to_bed: 0.3,
   download_capacity: 12,
-  offload_nurses_per_hour: [1, 1, 2, 2, 3, 3, 3, 3, 2, 2, 1, 1],
+  offload_nurses_per_hour: [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1],
   crew_hospital_time_draw: 25.0,
   "offload_service_time_draw": {
       "uniform": [

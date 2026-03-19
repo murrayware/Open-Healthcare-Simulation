@@ -6,6 +6,9 @@ import { useSimulationWorkspace } from "../context/SimulationWorkspaceContext";
 import Chart from "react-apexcharts";
 import SettingsSidebar from "../components/SettingsSidebar";
 import MetricsTab from "../components/MetricsTab";
+import PhysiciansTab from "../components/PhysiciansTab";
+import DiagnosticTab from "../components/DiagnosticTab";
+import SummaryTab from "../components/SummaryTab";
 import { roundFloats } from "../utils";
 import apiFetch from "../api/client";
 import { 
@@ -25,6 +28,7 @@ import {
 
 const SimulationPage = () => {
   const { id } = useParams();
+  console.log('[SIMULATION PAGE] Component rendered with ID from URL:', id);
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const { 
@@ -34,6 +38,7 @@ const SimulationPage = () => {
   } = useSimulationWorkspace();
   
   const simulation = getSimulation(id);
+  console.log('[SIMULATION PAGE] Retrieved simulation:', simulation ? { id: simulation.id, name: simulation.name } : 'null');
   
   // If simulation doesn't exist, redirect to home
   useEffect(() => {
@@ -51,14 +56,18 @@ const SimulationPage = () => {
   }, [id]); // Only depend on id, not on simulation or switchToSimulation
 
   const [loading, setLoading] = useState(false);
-  const [activeTab, setActiveTab] = useState("ed_flow");
+  const [activeTab, setActiveTab] = useState("summary");
   const [isDesktop, setIsDesktop] = useState(window.innerWidth >= 1024);
   const [tabLoading, setTabLoading] = useState(false);
+  const [settingsModified, setSettingsModified] = useState(false);
+  const [tooltipDismissed, setTooltipDismissed] = useState(false);
   const autoRunExecutedRef = useRef(false);
 
   // Memoize the settings change handler to prevent infinite loops
   const handleSettingsChange = useCallback((updatedSettings) => {
     updateSimulation(id, { settings: updatedSettings });
+    setSettingsModified(true);
+    console.log("Settings modified for simulation", id);
   }, [id, updateSimulation]);
 
   // Monitor window size for responsive behavior
@@ -78,6 +87,71 @@ const SimulationPage = () => {
     setTimeout(() => setTabLoading(false), 100);
   }, []);
 
+  // Extract data from simulation (with safe defaults)
+  const {
+    name,
+    defaultMetrics,
+    adjustedMetrics,
+    compareId,
+    settings = {},
+    defaultSettings = null,
+    isFromTemplate = true // default to true for backward compatibility
+  } = simulation || {};
+
+  // Load default settings from database if not already loaded
+  useEffect(() => {
+    const loadDefaultSettings = async () => {
+      console.log('[DEFAULT SETTINGS] Check:', { 
+        hasSimulation: !!simulation, 
+        hasDefaultMetrics: !!defaultMetrics, 
+        hasDefaultSettings: !!defaultSettings, 
+        hasCompareId: !!compareId,
+        simulationId: id
+      });
+      
+      // Only load if:
+      // 1. We have metrics (simulation has been run)
+      // 2. We don't have defaultSettings yet
+      // 3. We have a compareId (confirms simulation was saved to database)
+      if (!simulation || !defaultMetrics || defaultSettings || !compareId) {
+        return;
+      }
+      
+      console.log('[DEFAULT SETTINGS] Fetching from database for simulation:', id);
+      
+      // Small delay to ensure database write has completed
+      await new Promise(resolve => setTimeout(resolve, 100));
+      
+      try {
+        // Try to get the first input settings from the database using simulation_id
+        const response = await apiFetch(`/api/inputs/first/${id}`, {
+          method: "GET"
+        });
+
+        if (response && response.settings) {
+          console.log('[DEFAULT SETTINGS] Loaded from database successfully');
+          // Update simulation with the default settings from first run
+          updateSimulationData({ defaultSettings: response.settings });
+        }
+      } catch (err) {
+        // Silently handle 404 - it's expected for old simulations or after database recreation
+        // No action needed, simulation will work normally without default settings
+        console.error('[DEFAULT SETTINGS] Failed to load:', err);
+        if (err.status !== 404) {
+          console.warn("Could not load default settings from database:", err);
+        }
+      }
+    };
+
+    loadDefaultSettings();
+  }, [id, simulation, defaultMetrics, defaultSettings, compareId]);
+
+  // Reset settingsModified and tooltip flags when simulation changes or results change
+  useEffect(() => {
+    setSettingsModified(false);
+    setTooltipDismissed(false);
+  }, [id, defaultMetrics, adjustedMetrics]);
+
   // If no simulation found, show loading or redirect
   if (!simulation) {
     return (
@@ -86,15 +160,6 @@ const SimulationPage = () => {
       </Box>
     );
   }
-
-  // Extract data from simulation
-  const {
-    name,
-    defaultMetrics,
-    adjustedMetrics,
-    compareId,
-    settings = {}
-  } = simulation;
 
   // Extract settings data (backend format)
   const {
@@ -127,7 +192,10 @@ const SimulationPage = () => {
   };
 
   const setDefaultMetrics = (metrics) => {
-    updateSimulationData({ defaultMetrics: metrics });
+    // Don't capture defaultSettings here - it will be loaded from database
+    updateSimulationData({ 
+      defaultMetrics: metrics
+    });
   };
 
   const setAdjustedMetrics = (metrics) => {
@@ -143,9 +211,12 @@ const SimulationPage = () => {
     const areasToUse = areasOverride || simulationAreas;
     const arrivalsToUse = arrivalsOverride || simulationArrivals;
 
+    console.log('[SIMULATION PAGE] Building payload with simulation_id:', id, 'name:', simulation.name);
     return {
-      hospital_id: simulation.hospitalKey.replace("hospital-", "").toUpperCase(),
+      hospital_id: simulation.templateName || null,
       run_id: `sim-${id}-${Date.now()}`,
+      simulation_id: id,  // Constant identifier for grouping all runs of this simulation
+      simulation_name: simulation.name,  // Store the simulation name in database
       seed: 99,
       run: { duration_minutes: 1440 },
       doctors: simulationDoctors,
@@ -217,6 +288,9 @@ const SimulationPage = () => {
           setDefaultMetrics(rounded);
           setAdjustedMetrics(null);
           
+          // Don't set defaultSettings here - let the useEffect fetch it from database
+          // This ensures we always get the actual first-run settings from the database
+          
           // Capture compare_id if this was the first run
           if (result.compare_id) {
             setCompareId(result.compare_id);
@@ -257,33 +331,55 @@ const SimulationPage = () => {
   // Memoize the metrics tabs configuration to prevent re-creation on every render
   const metricsTabs = useMemo(() => [
     { 
+      key: "summary", 
+      label: "Summary", 
+      title: "Summary Metrics",
+      component: 'summary'
+    },
+    { 
       key: "ed_flow", 
       label: "ED Flow", 
       title: "Emergency Department Flow Metrics",
       metricsConfig: ED_FLOW_METRICS_CONFIG,
-      filterFunction: FILTER_FUNCTIONS.edFlow
+      filterFunction: FILTER_FUNCTIONS.edFlow,
+      component: 'metrics'
     },
     { 
       key: "ems", 
       label: "EMS", 
       title: "Emergency Medical Services Metrics",
       metricsConfig: EMS_METRICS_CONFIG,
-      filterFunction: FILTER_FUNCTIONS.ems
+      filterFunction: FILTER_FUNCTIONS.ems,
+      component: 'metrics'
     },
     { 
-      key: "inpatient_consults", 
-      label: "Inpatient Consults", 
-      title: "Inpatient Consultation Metrics",
-      metricsConfig: INPATIENT_METRICS_CONFIG,
-      filterFunction: FILTER_FUNCTIONS.inpatient
+      key: "physicians", 
+      label: "Physicians", 
+      title: "Physician Performance Metrics",
+      component: 'physicians'
     },
     { 
-      key: "lab_diagnostic", 
-      label: "Lab/Diagnostic", 
-      title: "Laboratory and Diagnostic Metrics",
-      metricsConfig: LAB_DIAGNOSTIC_METRICS_CONFIG,
-      filterFunction: FILTER_FUNCTIONS.lab
-    }
+      key: "diagnostic", 
+      label: "Diagnostic", 
+      title: "Diagnostic Imaging Metrics",
+      component: 'diagnostic'
+    },
+    // { 
+    //   key: "inpatient_consults", 
+    //   label: "Inpatient Consults", 
+    //   title: "Inpatient Consultation Metrics",
+    //   metricsConfig: INPATIENT_METRICS_CONFIG,
+    //   filterFunction: FILTER_FUNCTIONS.inpatient,
+    //   component: 'metrics'
+    // },
+    // { 
+    //   key: "lab_diagnostic", 
+    //   label: "Lab/Diagnostic", 
+    //   title: "Laboratory and Diagnostic Metrics",
+    //   metricsConfig: LAB_DIAGNOSTIC_METRICS_CONFIG,
+    //   filterFunction: FILTER_FUNCTIONS.lab,
+    //   component: 'metrics'
+    // }
   ], []);
 
   const currentTab = useMemo(() => 
@@ -291,12 +387,17 @@ const SimulationPage = () => {
     [metricsTabs, activeTab]
   );
 
+  // Calculate if tooltip should show (when defaultSettings exist and settings haven't been modified yet)
+  const shouldShowTooltip = !!defaultSettings && !settingsModified && !tooltipDismissed && !loading;
+
   return (
     <div className="h-full w-full relative overflow-hidden">
       {/* Settings Sidebar */}
       <SettingsSidebar
         simulation={simulation}
         onSettingsChange={handleSettingsChange}
+        showTooltip={shouldShowTooltip}
+        onTooltipDismiss={() => setTooltipDismissed(true)}
       />
 
       {/* Main Content Area */}
@@ -311,20 +412,31 @@ const SimulationPage = () => {
           <div className="flex w-full items-center justify-left w-full">
 
             <div className="flex gap-2">
-              <Button 
-                color="primary" 
-                variant='contained'
-                onClick={runSimulation} 
-                disabled={loading}
-                sx={{
-                  borderTopLeftRadius: 0,
-                  borderBottomLeftRadius: 0,
-                  height: 40,
+              <div
+                onClick={() => {
+                  const isDisabled = loading || (metrics && !settingsModified) || (!isFromTemplate && !settingsModified);
+                  if (isDisabled && !isFromTemplate && !settingsModified) {
+                    setTooltipDismissed(false);
+                  }
                 }}
+                style={{ display: 'inline-block' }}
               >
-                Run
-                {loading ? <CircularProgress color="inherit" size={20} /> : <PlayArrowIcon />}
-              </Button>
+                <Button 
+                  color="primary" 
+                  variant='contained'
+                  onClick={runSimulation}
+                  disabled={loading || (metrics && !settingsModified) || (!isFromTemplate && !settingsModified)}
+                  sx={{
+                    borderTopLeftRadius: 0,
+                    borderBottomLeftRadius: 0,
+                    height: 40,
+                    pointerEvents: (loading || (metrics && !settingsModified) || (!isFromTemplate && !settingsModified)) ? 'none' : 'auto',
+                  }}
+                >
+                  Run
+                  {loading ? <CircularProgress color="inherit" size={20} /> : <PlayArrowIcon />}
+                </Button>
+              </div>
             </div>
             {/* <h1 className="flex w-full text-center text-xl font-semibold text-text-primary self-center">
               {simulation?.name || `Simulation ${id}`}
@@ -340,23 +452,39 @@ const SimulationPage = () => {
           <div className="flex-1 flex items-center justify-center">
             <div className="flex flex-col items-center space-y-4">
               <div className="flex items-center space-x-4">
-                <IconButton 
-                  color="primary" 
-                  onClick={runSimulation}
-                  sx={{
-                    backgroundColor: 'primary.main',
-                    color: 'white',
-                    '&:hover': {
-                      backgroundColor: 'primary.dark',
-                    },
-                    width: 64,
-                    height: 64,
+                <div
+                  onClick={() => {
+                    const isDisabled = loading || (!isFromTemplate && !settingsModified);
+                    if (isDisabled && !isFromTemplate && !settingsModified) {
+                      setTooltipDismissed(false);
+                    }
                   }}
+                  style={{ display: 'inline-block' }}
                 >
-                  <PlayArrowIcon sx={{ fontSize: 32 }} />
-                </IconButton>
+                  <IconButton 
+                    color="primary" 
+                    onClick={runSimulation}
+                    disabled={loading || (!isFromTemplate && !settingsModified)}
+                    sx={{
+                      backgroundColor: (!isFromTemplate && !settingsModified) ? 'action.disabledBackground' : 'primary.main',
+                      color: (!isFromTemplate && !settingsModified) ? 'action.disabled' : 'white',
+                      '&:hover': {
+                        backgroundColor: (!isFromTemplate && !settingsModified) ? 'action.disabledBackground' : 'primary.dark',
+                      },
+                      width: 64,
+                      height: 64,
+                      pointerEvents: (loading || (!isFromTemplate && !settingsModified)) ? 'none' : 'auto',
+                    }}
+                  >
+                    <PlayArrowIcon sx={{ fontSize: 32 }} />
+                  </IconButton>
+                </div>
               </div>
-              <p className="text-text-secondary">No data yet — configure settings and run the simulation.</p>
+              <p className="text-text-secondary">
+                {!isFromTemplate && !settingsModified
+                  ? "Configure settings in the sidebar to enable running the simulation."
+                  : "No data yet — run the simulation to see results."}
+              </p>
             </div>
           </div>
         ) : (
@@ -386,6 +514,27 @@ const SimulationPage = () => {
                 <div className="flex items-center justify-center h-64">
                   <CircularProgress color="inherit" />
                 </div>
+              ) : currentTab.component === 'summary' ? (
+                <SummaryTab
+                  key={activeTab}
+                  title={currentTab.title}
+                  defaultMetrics={defaultMetrics}
+                  adjustedMetrics={adjustedMetrics}
+                />
+              ) : currentTab.component === 'physicians' ? (
+                <PhysiciansTab
+                  key={activeTab}
+                  title={currentTab.title}
+                  defaultMetrics={defaultMetrics}
+                  adjustedMetrics={adjustedMetrics}
+                />
+              ) : currentTab.component === 'diagnostic' ? (
+                <DiagnosticTab
+                  key={activeTab}
+                  title={currentTab.title}
+                  defaultMetrics={defaultMetrics}
+                  adjustedMetrics={adjustedMetrics}
+                />
               ) : (
                 <MetricsTab
                   key={activeTab} // Force re-mount for better performance isolation

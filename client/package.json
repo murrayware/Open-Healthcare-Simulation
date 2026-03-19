@@ -29,6 +29,8 @@
     "react-dom": "^19.1.1",
     "react-leaflet": "^5.0.0",
     "react-router-dom": "^7.9.4",
+    "uplot": "^1.6.31",
+    "uplot-react": "^1.2.2",
     "uuid": "^13.0.0"
   },
   "devDependencies": {

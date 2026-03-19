@@ -1,5 +1,5 @@
 // src/api/client.js
-const API_BASE = import.meta.env.VITE_API_BASE_URL || 'https://edsim.warewebsolutions.ca';
+const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000';
 
 // Global auth handler - will be set by AuthContext
 let globalAuthErrorHandler = null;

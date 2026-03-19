@@ -4,6 +4,7 @@ import { Card, CardContent, Typography, Box } from "@mui/material";
 const SettingsCard = ({ title, children, footer, className = "" }) => {
   return (
     <Card
+    elevation={0}
       sx={{
         display: "flex",
         flexDirection: "column",

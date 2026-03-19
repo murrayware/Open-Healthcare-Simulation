@@ -1,5 +1,5 @@
 // PhysiciansSection.jsx
-import React, { useState, useCallback } from "react";
+import React, { useState, useCallback, useEffect, useRef } from "react";
 import SettingsCard from "../../../components/SettingsCard";
 import SettingsModal from "../../../components/SettingsModal";
 import HourlyLambdaChart from "../../../components/HourlyLambdaChart";
@@ -58,10 +58,31 @@ const adjustArrayLength = (arr, hours, fill = 1) => {
   return arr.slice(0, newLength);
 };
 
-const PhysiciansSection = ({ physicians, setPhysicians, availableAreas = {}, fastTrack = {} }) => {
+const PhysiciansSection = ({ physicians, setPhysicians, availableAreas = {}, fastTrack = {}, quickAction = null }) => {
   const [modalOpen, setModalOpen] = useState(false);
   const [editingIndex, setEditingIndex] = useState(null);
   const [form, setForm] = useState(defaultPhysicians);
+  const [chartKey, setChartKey] = useState(0);
+  const lastHandledQuickActionToken = useRef(null);
+
+  // Force chart to resize when component mounts or physicians change
+  useEffect(() => {
+    // Small delay to ensure container is fully rendered
+    const timer = setTimeout(() => {
+      setChartKey(prev => prev + 1);
+    }, 200);
+    return () => clearTimeout(timer);
+  }, []);
+
+  useEffect(() => {
+    if (quickAction?.target !== "add-physician" || !quickAction?.token) return;
+    if (lastHandledQuickActionToken.current === quickAction.token) return;
+
+    lastHandledQuickActionToken.current = quickAction.token;
+    setEditingIndex(null);
+    setForm(defaultPhysicians);
+    setModalOpen(true);
+  }, [quickAction?.token, quickAction?.target]);
 
   // Get list of available area names
   const areaNames = Object.keys(availableAreas);
@@ -230,6 +251,7 @@ const PhysiciansSection = ({ physicians, setPhysicians, availableAreas = {}, fas
           {/* Gantt Chart */}
 
             <Chart
+              key={chartKey}
               options={ganttChartOptions}
               series={ganttChartSeries}
               type="rangeBar"
