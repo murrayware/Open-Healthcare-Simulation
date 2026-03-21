@@ -18,6 +18,12 @@ from sqlalchemy import text
 from database.users_table import engine
 
 import mimetypes
+
+try:
+    from dotenv import load_dotenv
+except Exception:
+    load_dotenv = None
+
 # --- Your internal modules ---
 from edems.utils import u
 from edems.eventlog import EventLog
@@ -264,7 +270,23 @@ def df_to_records_clean(obj):
 
 mimetypes.add_type('application/javascript', '.js')
 
-static_folder_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'client', 'dist')
+# Load root .env if python-dotenv is available.
+if load_dotenv:
+    load_dotenv(dotenv_path=os.path.join(os.path.dirname(os.path.abspath(__file__)), ".env"))
+
+
+def _normalize_build_env(value: str | None) -> str:
+    if value is None:
+        return "dev"
+    normalized = value.strip().strip("\"").strip("'").lower()
+    if normalized not in {"dev", "prod"}:
+        return "dev"
+    return normalized
+
+
+# Dynamically set the static folder based on BUILD_ENV (dev/prod)
+build_env = _normalize_build_env(os.environ.get("BUILD_ENV", "dev"))
+static_folder_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "client", "dist", build_env)
 
 app = Flask(__name__, static_folder=static_folder_path, static_url_path='')
 
@@ -284,6 +306,28 @@ app.config["USER_DB_PATH"] = os.path.join(os.path.dirname(__file__), "users.db")
 
 app.register_blueprint(auth_bp)
 init_auth(app)
+
+app.logger.info("BUILD_ENV=%s static_folder=%s", build_env, static_folder_path)
+
+
+def _serve_spa_index_or_help():
+    index_path = os.path.join(app.static_folder, "index.html")
+    if os.path.exists(index_path):
+        return send_from_directory(app.static_folder, "index.html")
+
+    return (
+        jsonify({
+            "error": "Frontend build not found",
+            "build_env": build_env,
+            "expected_index": index_path,
+            "how_to_build": [
+                "cd client",
+                "npm run build:dev  # for BUILD_ENV=dev",
+                "npm run build:prod # for BUILD_ENV=prod",
+            ],
+        }),
+        503,
+    )
 
 
 # --------------- Helpers ---------------
@@ -631,12 +675,14 @@ def build_simconfig(payload: Dict[str, Any]) -> SimConfig:
 
 @app.route("/")
 def serve_index():
-    return send_from_directory(app.static_folder, "index.html")
+    return _serve_spa_index_or_help()
 
 # Catch-all for React Router (any non-API path should serve index.html)
 @app.errorhandler(404)
 def not_found(e):
-    return send_from_directory(app.static_folder, "index.html")
+    if request.path.startswith("/api"):
+        return jsonify({"error": "Not found"}), 404
+    return _serve_spa_index_or_help()
 
 
 @app.route("/simulate", methods=["POST"])
