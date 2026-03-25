@@ -41,12 +41,12 @@ const menuItems = [
     icon: <HomeIcon />, 
     path: "/home" 
   },
-  { 
-    key: "facility-map", 
-    label: "Facility Map", 
-    icon: <MapIcon />, 
-    path: "/facility-map" 
-  },
+  // { 
+  //   key: "facility-map", 
+  //   label: "Facility Map", 
+  //   icon: <MapIcon />, 
+  //   path: "/facility-map" 
+  // },
 ];
 
 const DRAWER_WIDTH = 280;
@@ -100,7 +100,15 @@ const Sidebar = ({ sidebarOpen, setSidebarOpen }) => {
 
   const handleCloseSimulation = (e, simulationId) => {
     e.stopPropagation();
-    closeSimulation(simulationId);
+    
+    // If closing the active simulation, redirect to home first
+    if (simulationId === activeSimulationId) {
+      navigate('/home');
+      // Delay closing until after navigation completes
+      setTimeout(() => closeSimulation(simulationId), 0);
+    } else {
+      closeSimulation(simulationId);
+    }
   };
 
   const handleSimulationsToggle = () => {
@@ -134,7 +142,7 @@ const Sidebar = ({ sidebarOpen, setSidebarOpen }) => {
       }}>
         {sidebarOpen && (
           <Typography variant="h6" sx={{ fontWeight: 'bold', color: appTheme.colors.primary.dark }}>
-            [logo]
+            Hospital Sim
           </Typography>
         )}
         <IconButton 

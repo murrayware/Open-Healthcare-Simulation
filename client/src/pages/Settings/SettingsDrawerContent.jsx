@@ -1,7 +1,8 @@
 // SettingsDrawerContent.jsx - Full settings content for use in drawers
 import React, { useState, useEffect, useCallback, useRef, useMemo } from "react";
-import { Button, Typography, Box, Tabs, Tab } from "@mui/material";
+import { Button, Typography, Box, Tabs, Tab, IconButton } from "@mui/material";
 import SettingsIcon from "@mui/icons-material/Settings";
+import ChevronLeftIcon from "@mui/icons-material/ChevronLeft";
 import PhysiciansSection from "./physicians/PhysiciansSection";
 import EdArrivalsSection, { defaultArrivals } from "./ed/EdArrivalsSection";
 import EmsSection, { defaultEms } from "./ems/EmsSection";
@@ -45,7 +46,7 @@ function TabPanel({ children, value, index, ...other }) {
   );
 }
 
-const SettingsDrawerContent = ({ onClose, simulation, onSettingsChange }) => {
+const SettingsDrawerContent = ({ onClose, simulation, onSettingsChange, quickAction = null }) => {
   // Tab state
   const [activeTab, setActiveTab] = useState(0);
 
@@ -53,6 +54,19 @@ const SettingsDrawerContent = ({ onClose, simulation, onSettingsChange }) => {
   const handleTabChange = (event, newValue) => {
     setActiveTab(newValue);
   };
+
+  useEffect(() => {
+    if (!quickAction?.target || !quickAction?.token) return;
+
+    if (quickAction.target === "add-inpatient-unit") {
+      setActiveTab(2);
+      return;
+    }
+
+    if (quickAction.target === "add-physician" || quickAction.target === "add-ed-area") {
+      setActiveTab(0);
+    }
+  }, [quickAction?.token, quickAction?.target]);
 
   // Initialize settings from simulation using backend format
   const [doctors, setDoctors] = useState(simulation?.settings?.doctors || []);
@@ -163,8 +177,68 @@ const SettingsDrawerContent = ({ onClose, simulation, onSettingsChange }) => {
     }
   }, [debouncedSettings]); // Only depend on debouncedSettings
 
+  const handleResetToDefault = () => {
+    if (simulation?.defaultSettings) {
+      const defaults = simulation.defaultSettings;
+      
+      // Reset all individual state pieces
+      setDoctors(defaults.doctors || []);
+      setArrivals(defaults.arrivals || { 
+        hours: 24, 
+        walkin_hourly_lambda: [], 
+        admit_prob: 0.38, 
+        fasttrack_route_probability: 0.53,
+        lwbs_threshold_dist: { type: "uniform", low: 60, high: 240 }
+      });
+      setEms(defaults.ems || { enabled: false });
+      setAreas(defaults.areas || {});
+      setCapabilities(defaults.capabilities || defaultCapabilities);
+      setFasttrack(defaults.fasttrack || { enabled: false });
+      setInpatient(defaults.inpatient || { 
+        units: {}, 
+        direct_admits_enabled: true, 
+        direct_admit_hours: 24, 
+        direct_admit_hourly_lambda: {} 
+      });
+      
+      // Manually trigger settings change immediately (bypass debounce)
+      if (typeof onSettingsChange === 'function') {
+        const resetSettings = {
+          doctors: defaults.doctors || [],
+          arrivals: defaults.arrivals || { hours: 24, walkin_hourly_lambda: [], admit_prob: 0.38, fasttrack_route_probability: 0.53, lwbs_threshold_dist: { type: "uniform", low: 60, high: 240 } },
+          ems: defaults.ems || { enabled: false },
+          areas: defaults.areas || {},
+          capabilities: defaults.capabilities || defaultCapabilities,
+          fasttrack: defaults.fasttrack || { enabled: false },
+          inpatient: defaults.inpatient || { units: {}, direct_admits_enabled: true, direct_admit_hours: 24, direct_admit_hourly_lambda: {} }
+        };
+        onSettingsChange(resetSettings);
+      }
+    }
+  };
+
+  const hasDefaultSettings = simulation?.defaultSettings !== null && simulation?.defaultSettings !== undefined;
+
   return (
-    <Box sx={{ height: '100%', width: '100%', overflow: 'auto' }}>
+    <Box sx={{ height: '100%', width: '100%', overflow: 'auto', position: 'relative' }}>
+      {/* Close Button - Fixed on right edge */}
+      <IconButton
+        onClick={onClose}
+        sx={{
+          position: 'absolute',
+          right: 16,
+          top: 16,
+          zIndex: 1100,
+          bgcolor: 'background.paper',
+          boxShadow: 2,
+          '&:hover': {
+            bgcolor: 'background.elevated',
+          }
+        }}
+      >
+        <ChevronLeftIcon />
+      </IconButton>
+
       {/* Sticky Header */}
       <Box sx={{ 
         position: 'sticky', 
@@ -179,11 +253,21 @@ const SettingsDrawerContent = ({ onClose, simulation, onSettingsChange }) => {
         borderBottom: 1, 
         borderColor: 'divider' 
       }}>
-        <SettingsIcon size={70}/>
-        <Typography variant="h4" sx={{ fontWeight: 'bold' }}>
-          
-          Hospital Settings
-        </Typography>
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+          <SettingsIcon size={70}/>
+          <Typography variant="h5" sx={{ fontWeight: 'bold' }}>
+            Hospital Settings
+          </Typography>
+        </Box>
+        {hasDefaultSettings && (
+          <Button
+            variant="outlined"
+            onClick={handleResetToDefault}
+            size="small"
+          >
+            Reset to Default
+          </Button>
+        )}
       </Box>
 
       {/* Content */}
@@ -209,14 +293,14 @@ const SettingsDrawerContent = ({ onClose, simulation, onSettingsChange }) => {
           {/* Emergency Department Tab */}
           <TabPanel value={activeTab} index={0}>
             <Box sx={{ px: 3, pb: 3 }}>
-              <Box sx={{ mb: 3 }}>
+              {/* <Box sx={{ mb: 3 }}>
                 <Typography variant="h5" sx={{ fontWeight: 'bold', mb: 1 }}>
                   Emergency Department
                 </Typography>
                 <Typography variant="body2" color="text.secondary">
                   Configure ED physicians, patient arrivals, and treatment areas
                 </Typography>
-              </Box>
+              </Box> */}
               <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', xl: 'repeat(2, 1fr)' }, gap: 5 }}>
                 <Box sx={{ gridColumn: { xl: 'span 2' } }}>
                   <EDAreasSection 
@@ -224,6 +308,7 @@ const SettingsDrawerContent = ({ onClose, simulation, onSettingsChange }) => {
                     setEdAreas={setAreas} 
                     fastTrack={fasttrack} 
                     setFastTrack={setFasttrack}
+                    quickAction={quickAction}
                   />
                 </Box>
                 <Box sx={{ gridColumn: { xl: 'span 2' } }}>
@@ -232,6 +317,7 @@ const SettingsDrawerContent = ({ onClose, simulation, onSettingsChange }) => {
                     setPhysicians={setDoctors} 
                     availableAreas={areas}
                     fastTrack={fasttrack}
+                    quickAction={quickAction}
                   />
                 </Box>
                 <Box>
@@ -247,14 +333,14 @@ const SettingsDrawerContent = ({ onClose, simulation, onSettingsChange }) => {
           {/* EMS Tab */}
           <TabPanel value={activeTab} index={1}>
             <Box sx={{ px: 3, pb: 3 }}>
-              <Box sx={{ mb: 3 }}>
+              {/* <Box sx={{ mb: 3 }}>
                 <Typography variant="h5" sx={{ fontWeight: 'bold', mb: 1 }}>
                   EMS
                 </Typography>
                 <Typography variant="body2" color="text.secondary">
                   Configure EMS arrivals and protocols
                 </Typography>
-              </Box>
+              </Box> */}
               <Box>
                 <EmsSection 
                   ems={ems} 
@@ -267,18 +353,19 @@ const SettingsDrawerContent = ({ onClose, simulation, onSettingsChange }) => {
           {/* Inpatient Tab */}
           <TabPanel value={activeTab} index={2}>
             <Box sx={{ px: 3, pb: 3 }}>
-              <Box sx={{ mb: 3 }}>
+              {/* <Box sx={{ mb: 3 }}>
                 <Typography variant="h5" sx={{ fontWeight: 'bold', mb: 1 }}>
                   Inpatient Services
                 </Typography>
                 <Typography variant="body2" color="text.secondary">
                   Configure inpatient units and direct admissions
                 </Typography>
-              </Box>
+              </Box> */}
               <Box>
                 <InpatientSection 
                   inpatient={inpatient} 
                   setInpatient={setInpatient}
+                  quickAction={quickAction}
                 />
               </Box>
             </Box>
@@ -287,14 +374,14 @@ const SettingsDrawerContent = ({ onClose, simulation, onSettingsChange }) => {
           {/* Capabilities Tab */}
           <TabPanel value={activeTab} index={3}>
             <Box sx={{ px: 3, pb: 3 }}>
-              <Box sx={{ mb: 3 }}>
+              {/* <Box sx={{ mb: 3 }}>
                 <Typography variant="h5" sx={{ fontWeight: 'bold', mb: 1 }}>
                   Hospital Capabilities
                 </Typography>
                 <Typography variant="body2" color="text.secondary">
                   Configure hospital services and capabilities
                 </Typography>
-              </Box>
+              </Box> */}
               <Box>
                 <CapabilitiesSection 
                   capabilities={capabilities} 

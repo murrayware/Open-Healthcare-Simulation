@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from "react";
+import React, { useState, useCallback, useEffect, useRef } from "react";
 import SettingsCard from "../../../components/SettingsCard";
 import SettingsModal from "../../../components/SettingsModal";
 import HourlyLambdaChart from "../../../components/HourlyLambdaChart";
@@ -42,7 +42,28 @@ const ensureLambda = (map, service, hours) => {
   };
 };
 
-const InpatientSection = ({ inpatient, setInpatient }) => {
+// Normalize los_draw to uniform format for editing (frontend only supports uniform)
+const normalizeToUniform = (los_draw) => {
+  if (!los_draw) return { uniform: [180, 720] };
+  
+  // If already uniform
+  if (los_draw.uniform) return los_draw;
+  
+  // If lognormal or other format, convert to a reasonable uniform range
+  if (los_draw.lognormal) {
+    const mean = los_draw.lognormal.mean || 4.5; // hours
+    const sigma = los_draw.lognormal.sigma || 0.35;
+    // Approximate: use mean ± 2*sigma in hours, convert to minutes
+    const lowHours = Math.max(0.5, mean - 2 * sigma);
+    const highHours = mean + 2 * sigma;
+    return { uniform: [Math.round(lowHours * 60), Math.round(highHours * 60)] };
+  }
+  
+  // Fallback
+  return { uniform: [180, 720] };
+};
+
+const InpatientSection = ({ inpatient, setInpatient, quickAction = null }) => {
   // Extract values from the inpatient object (backend format)
   const inpatientUnits = Object.values(inpatient?.units || {});
   const directAdmitsEnabled = inpatient?.direct_admits_enabled || false;
@@ -68,6 +89,7 @@ const InpatientSection = ({ inpatient, setInpatient }) => {
   const [form, setForm] = useState(defaultInpatientUnit);
   const [originalService, setOriginalService] = useState(null);
   const [nameError, setNameError] = useState("");
+  const lastHandledQuickActionToken = useRef(null);
 
   // Optimized onChange handler for hourly lambda chart
   const handleHourlyLambdaChange = useCallback((updated) => {
@@ -90,13 +112,25 @@ const InpatientSection = ({ inpatient, setInpatient }) => {
     setUnitModalOpen(true);
   };
 
+  useEffect(() => {
+    if (quickAction?.target !== "add-inpatient-unit" || !quickAction?.token) return;
+    if (lastHandledQuickActionToken.current === quickAction.token) return;
+
+    lastHandledQuickActionToken.current = quickAction.token;
+    setEditingKey(null);
+    setForm(defaultInpatientUnit);
+    setOriginalService(null);
+    setNameError("");
+    setUnitModalOpen(true);
+  }, [quickAction?.token, quickAction?.target]);
+
   const openEditModal = (unitKey) => {
     const unit = inpatientUnits.find(u => u.name === unitKey);
     setEditingKey(unitKey);
     setForm({ 
       service: unit.name, 
       beds: unit.beds,
-      los_draw: unit.los_draw || defaultInpatientUnit.los_draw
+      los_draw: normalizeToUniform(unit.los_draw)
     });
     setOriginalService(unit.name);
     setNameError("");
