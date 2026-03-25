@@ -1,9 +1,11 @@
 # edems/patient_generation.py
 from __future__ import annotations
+
 import random
 
 try:
     from typing import TYPE_CHECKING
+
     if TYPE_CHECKING:
         from .ed import SingleSiteSim
 except Exception:
@@ -13,46 +15,57 @@ except Exception:
 class Patient:
     _id = 0
 
-    def __init__(self, env, area_name, eventlog, triage_w, lwbs_draw, *,
-                 ctas: int | None = None, is_ems: bool = False,
-                 ems_direct: bool = False, is_critical: bool = False):
+    def __init__(
+        self,
+        env,
+        area_name,
+        eventlog,
+        triage_w,
+        lwbs_draw,
+        *,
+        ctas: int | None = None,
+        is_ems: bool = False,
+        ems_direct: bool = False,
+        is_critical: bool = False,
+    ):
         Patient._id += 1
         self.id = Patient._id
         self.env = env
-        self.area = area_name  # initial area assignment ("FAST" or an acute label like "A")
+        self.area = (
+            area_name  # initial area assignment ("FAST" or an acute label like "A")
+        )
         self.eventlog = eventlog
         self.is_ems = bool(is_ems)
-        self.ems_direct = bool(ems_direct)   # intended for download after offload
+        self.ems_direct = bool(ems_direct)  # intended for download after offload
         self.is_critical = bool(is_critical)
         self.disp_name = None
 
         # --- triage features (same as before) ---
         self.age = random.randint(18, 95)
-        self.homeless_flag = (random.random() < 0.10)
+        self.homeless_flag = random.random() < 0.10
         self.temp = random.uniform(36.0, 40.5)
-        self.o2   = random.uniform(80, 100)
-        self.bp   = random.uniform(70, 180)
-        self.gcs  = random.randint(3, 15)
+        self.o2 = random.uniform(80, 100)
+        self.bp = random.uniform(70, 180)
+        self.gcs = random.randint(3, 15)
         self.complaint = random.randint(1, 168)
-        self.is_trauma = (random.random() < 0.10)
-        self.is_mh     = (random.random() < 0.12)
+        self.is_trauma = random.random() < 0.10
+        self.is_mh = random.random() < 0.12
         self.ctas = ctas if ctas else 3
         self.doctor_name = None
         self.treatment_start = None
-
 
         # --- acuity score (unchanged formula) ---
         w = triage_w
         flags = int(self.is_trauma) + int(self.is_mh)
         self.acuity = (
-            w.w_age*(self.age/100.0) +
-            w.w_temp*((self.temp-36.0)/4.5) +
-            w.w_o2*((100-self.o2)/20.0) +
-            w.w_bp*((120-self.bp)/50.0) +
-            w.w_gcs*((15-self.gcs)/12.0) +
-            w.w_complaint*(self.complaint/168.0) +
-            w.w_flags*flags +
-            w.ctas_bonus.get(self.ctas, 0.0)
+            w.w_age * (self.age / 100.0)
+            + w.w_temp * ((self.temp - 36.0) / 4.5)
+            + w.w_o2 * ((100 - self.o2) / 20.0)
+            + w.w_bp * ((120 - self.bp) / 50.0)
+            + w.w_gcs * ((15 - self.gcs) / 12.0)
+            + w.w_complaint * (self.complaint / 168.0)
+            + w.w_flags * flags
+            + w.ctas_bonus.get(self.ctas, 0.0)
         )
         self.acuity_bonus = 0.0  # e.g., EMS download bump
 
@@ -60,7 +73,6 @@ class Patient:
         base = float(lwbs_draw())  # treat draw as a mean-like baseline in minutes
         self.lwbs_threshold = self._calc_lwbs_threshold_minutes(base, self.acuity)
         self.lwbs = 0  # 1 if patient leaves without being seen
-
 
         # Nursing assessment (acute only)
         self.nurse_assess_start = None
@@ -89,10 +101,10 @@ class Patient:
         self.download_end = None
         self.download_minutes = None
 
-        #Orders Area
+        # Orders Area
         self.requires_lab = 0
         self.requires_di = 0
-        self.di_modality = None          # "Xray" | "CT" | "US" | None
+        self.di_modality = None  # "Xray" | "CT" | "US" | None
         self.requires_lab = 0
         self.lab_start = None
         self.lab_end = None
@@ -104,24 +116,39 @@ class Patient:
         self.di_start = None
         self.di_end = None
         self.di_minutes = None
-        #Doctor touchpoints
+        # Doctor touchpoints
         self.one_touch = 0
         self.two_touch = 0
         self.three_touch = 0
-        #consults
+        # consults
         self.consult_ordered = 0
         self.consult_start = None
         self.consult_end = None
         self.consult_minutes = None
-        #stablization
+        # stablization
+        self.seeded = False
         self.stabilization_done = 0
         self.requires_stabilization = 0
 
-
-        eventlog.add(env.now, "arrival", pid=self.id, area=self.area, acuity=self.acuity,
-                     ctas=self.ctas, is_ems=self.is_ems, is_critical=self.is_critical)
-        eventlog.add(env.now, "lwbs_set", pid=self.id, lwbs_min=self.lwbs_threshold,
-                     base_min=base, area=self.area, is_ems=self.is_ems)
+        eventlog.add(
+            env.now,
+            "arrival",
+            pid=self.id,
+            area=self.area,
+            acuity=self.acuity,
+            ctas=self.ctas,
+            is_ems=self.is_ems,
+            is_critical=self.is_critical,
+        )
+        eventlog.add(
+            env.now,
+            "lwbs_set",
+            pid=self.id,
+            lwbs_min=self.lwbs_threshold,
+            base_min=base,
+            area=self.area,
+            is_ems=self.is_ems,
+        )
 
     @staticmethod
     def _calc_lwbs_threshold_minutes(base_min: float, acuity: float) -> float:
@@ -132,12 +159,8 @@ class Patient:
         return max(5.0, base_min * scale)
 
 
-
-
 class PatientGenerationMixin:
     """Creation & initial routing for walk-ins and EMS, plus basic validation."""
-
-
 
     def _assign_touches_and_route(self, p, is_fast_candidate: bool):
         """
@@ -168,8 +191,13 @@ class PatientGenerationMixin:
             if was_fast:
                 # pick an acute area and log the override
                 p.area = self._choose_acute_area_name()
-                self.eventlog.add(self.env.now, "route_override",
-                                  pid=p.id, reason="three_touch_force_acute", new_area=p.area)
+                self.eventlog.add(
+                    self.env.now,
+                    "route_override",
+                    pid=p.id,
+                    reason="three_touch_force_acute",
+                    new_area=p.area,
+                )
 
             # treat as 2-touch operationally, but remember original for analytics
             p.was_three_touch = 1
@@ -182,7 +210,7 @@ class PatientGenerationMixin:
 
         return is_fast_candidate
 
-  # edems/patient_generation.py
+    # edems/patient_generation.py
 
     # ---- creation & arrival intak ----
     def _make_patient(self, ctas=None, is_ems=False, lwbs_draw=None):
@@ -190,11 +218,11 @@ class PatientGenerationMixin:
             # EMS → ACUTE areas by policy
             area_name = self._choose_acute_area_name()
             try:
-                ems_direct = (random.random() < float(self.cfg.ems.p_direct_to_bed))
+                ems_direct = random.random() < float(self.cfg.ems.p_direct_to_bed)
             except Exception:
                 ems_direct = False
             try:
-                is_critical = (random.random() < float(self.cfg.ems.p_critical))
+                is_critical = random.random() < float(self.cfg.ems.p_critical)
             except Exception:
                 is_critical = False
 
@@ -249,32 +277,48 @@ class PatientGenerationMixin:
             is_fast = False
             p.area = self._choose_acute_area_name()
             self.eventlog.add(
-                self.env.now, "route_override",
-                pid=p.id, reason="three_touch_force_acute_reroute", new_area=p.area
+                self.env.now,
+                "route_override",
+                pid=p.id,
+                reason="three_touch_force_acute_reroute",
+                new_area=p.area,
             )
 
         p.lwbs_threshold = self.draw_lwbs_threshold_minutes(self.cfg, p, is_fast)
 
         # --- Enqueue to correct area ---
         if is_fast:
-
             self.fasttrack_q.append(p.id)
-            self.eventlog.add(self.env.now, "enqueue", pid=p.id, queue="FAST",
-                              qlen=len(self.fasttrack_q), is_ems=False)
-            self.eventlog.add(self.env.now, "route", pid=p.id, to="FAST",
-                              area=p.area, is_ems=False)
+            self.eventlog.add(
+                self.env.now,
+                "enqueue",
+                pid=p.id,
+                queue="FAST",
+                qlen=len(self.fasttrack_q),
+                is_ems=False,
+            )
+            self.eventlog.add(
+                self.env.now, "route", pid=p.id, to="FAST", area=p.area, is_ems=False
+            )
         else:
             p.lwbs_threshold = float(self.cfg.lwbs.acute_threshold_draw())
             self.acute_q.append(p.id)
-            self.eventlog.add(self.env.now, "enqueue", pid=p.id, queue="ACUTE",
-                              qlen=len(self.acute_q), area=p.area, is_ems=False)
-            self.eventlog.add(self.env.now, "route", pid=p.id, to="ACUTE",
-                              area=p.area, is_ems=False)
+            self.eventlog.add(
+                self.env.now,
+                "enqueue",
+                pid=p.id,
+                queue="ACUTE",
+                qlen=len(self.acute_q),
+                area=p.area,
+                is_ems=False,
+            )
+            self.eventlog.add(
+                self.env.now, "route", pid=p.id, to="ACUTE", area=p.area, is_ems=False
+            )
 
         # Start LWBS timer for walk-ins
         self.env.process(self._lwbs_watch(p, is_fast))
         return p
-
 
     # ---- touches helper (lives in patient generation) ----
     def _assign_touches(self, p):
@@ -314,19 +358,27 @@ class PatientGenerationMixin:
         p.requires_stabilization = 1 if random.random() < p.p_stabilization else 0
         p.stabilization_done = 0
 
-
-        self.eventlog.add(self.env.now, "touch_assigned",
-                          pid=p.id, one=p.one_touch, two=p.two_touch, three=p.three_touch, chosen=touches)
+        self.eventlog.add(
+            self.env.now,
+            "touch_assigned",
+            pid=p.id,
+            one=p.one_touch,
+            two=p.two_touch,
+            three=p.three_touch,
+            chosen=touches,
+        )
 
     # ---- routing helpers ----
     def _choose_acute_area_name(self) -> str:
         import random
+
         if getattr(self.cfg, "areas", None):
             return random.choice(list(self.cfg.areas.keys()))
         return "ACUTE"
 
     def _route_fast_walkin(self) -> bool:
         import random
+
         ft = getattr(self.cfg, "fasttrack", None)
         if not ft or not getattr(ft, "enabled", False):
             return False
@@ -335,7 +387,7 @@ class PatientGenerationMixin:
             p = float(self.cfg.arrivals.fasttrack_route_probability)
         else:
             p = float(getattr(ft, "route_probability", 0.0) or 0.0)
-        return (random.random() < p)
+        return random.random() < p
 
     # ---- validation ----
     def _validate_doctors(self) -> None:

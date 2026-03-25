@@ -20,15 +20,16 @@ from database.users_table import engine
 import mimetypes
 # --- Your internal modules ---
 from edems.utils import u
-from edems.eventlog import EventLog
-from edems.hospital import Hospital
+from core.eventlog import EventLog
+from core.hospital import Hospital
+
 from edems.config import (
     SimConfig, AreaConfig, NurseModelConfig, DoctorConfig,
     ArrivalsConfig, EMSConfig, TriageWeights, OrdersConfig,
-    # ConsultConfig,
     DispositionConfig, CapabilitiesConfig,
     InpatientUnitSpec, InpatientConfig, FastTrackConfig
 )
+
 from edems.analytics import summarize_patients
 
 def _clean_numpy_scalar(x):

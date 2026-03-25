@@ -1,91 +1,105 @@
+# Emergency Department Simulation Engine (ED-EMS)
 
-# Emergency Department Simulation (ED-EMS)
-
-[![Live Demo](https://img.shields.io/badge/Live-Demo-blue)](https://edsim.warewebsolutions.ca)
+[![Live Demo](https://img.shields.io/badge/Live-Demo-blue)](https://edsim.warewebsolutions.ca)  
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](https://opensource.org/licenses/MIT)
 
-**Authors:** Murray Ware and Anton Massinger
-**License:** MIT
+**Authors:** Murray Ware, Anton Massinger  
+**License:** MIT  
 
 ---
 
-##  Live Demo
+## Disclaimer
 
-A fully interactive web version of the simulation is available here:
+This project is an independent, open-source initiative.
 
- **[https://edsim.warewebsolutions.ca](https://edsim.warewebsolutions.ca)**
+- It is not affiliated with, endorsed by, or developed for any specific healthcare organization
+- It contains no proprietary, confidential, or identifiable data
+- All configurations, parameters, and examples are synthetic or generalized
+
+---
+
+## Live Demo
+
+A fully interactive web version of the simulation is available:
+
+https://edsim.warewebsolutions.ca
 
 The demo includes:
 
-* Predefined hospital templates
-* Baseline vs adjusted scenario comparison
-* Persistent saved simulations
-* Multi-user login
-* Full operational metrics visualization
-* EMS offload modeling
+- Predefined example templates (synthetic)
+- Baseline vs adjusted scenario comparison
+- Persistent saved simulations
+- Multi-user login
+- Operational metrics visualization
+- EMS offload modeling
 
 ---
 
 # Overview
 
-ED-EMS is a modular, event-driven simulation of Emergency Department (ED) operations built with **SimPy**.
+Open Healthcare Simulation is a modular, event-driven simulation framework for modeling patient flow and operational dynamics in emergency departments.
 
-It models:
+Built with SimPy, it is designed as a general-purpose engine for:
 
-* Walk-in arrivals
-* EMS arrivals and offload
-* Fast Track and Acute areas
-* Physician 1-, 2-, and 3-touch workflows
-* Nursing assessment models
-* Labs and Diagnostic Imaging (DI)
-* Consult logic
-* Inpatient admissions and boarding
-* LWBS (Leave Without Being Seen)
-* EMS download capacity constraints
-* Offload nurse staffing profiles
+- scenario testing  
+- system behavior exploration  
+- operational modeling  
+
+---
+
+## What It Models
+
+- Walk-in arrivals  
+- EMS arrivals and offload processes  
+- Multi-area flow (e.g., fast-track vs higher-acuity streams)  
+- Physician workflows (1-, 2-, and 3-touch models)  
+- Nursing assessment patterns  
+- Laboratory and diagnostic workflows  
+- Consult and disposition logic  
+- Inpatient admission and boarding  
+- LWBS (leave without being seen) behavior  
+- Capacity constraints and resource contention  
+
+---
+
+## Project Structure
 
 The project includes:
 
-* A **React frontend**
-* A **Flask API backend**
-* A **modular SimPy engine**
-* A **database for users, saved configurations, and scenario comparisons**
+- Simulation engine (SimPy-based, modular design)
+- Flask API backend
+- React frontend
+- Persistence layer for scenarios and outputs
 
 ---
 
 # System Architecture
 
 ```
+
 React Frontend
-        │
-        ▼
-Flask API (api.py)
-        │
-        ├── Simulation Engine (edems/)
-        │      ├── Modular Mixins
-        │      ├── Policies
-        │      └── Config Objects
-        │
-        ├── Database Layer
-        │      ├── users
-        │      ├── inputs
-        │      ├── outputs
-        │      └── compares
-        │
-        └── Analytics + Metrics
-```
+│
+▼
+Flask API
+│
+├── Simulation Engine (edems/)
+│      ├── Modular Components
+│      ├── Policies
+│      └── Config Objects
+│
+├── Persistence Layer
+│
+└── Metrics & Analytics
+
+````
 
 ---
 
 # Simulation Engine Design
 
-The simulation core is built using a **mixin-based architecture**.
-
-Each major operational domain is isolated in its own module and composed into a single site simulation class.
+The core simulation uses a mixin-based architecture, where each operational domain is isolated and composable.
 
 ## Core Class
-
-`edems/ed.py`
 
 ```python
 class SingleSiteSim(
@@ -97,235 +111,126 @@ class SingleSiteSim(
     InpatientFlowMixin,
     DoctorManager,
 )
-```
+````
 
-This design provides:
+### Design Principles
 
-* Separation of responsibilities
-* Clean extension points
-* Testable components
-* Modular feature enablement
+* Separation of concerns
+* Modular extensibility
+* Reproducibility
 * Clear operational boundaries
 
 ---
 
-# Mixin Architecture
+# Component Architecture
 
-Each `.py` file in `edems/` encapsulates its own logic.
+Each module in `edems/` encapsulates a specific domain:
 
-## PatientGenerationMixin
+### Patient Generation
 
-* Walk-in arrivals
-* EMS arrivals
-* CTAS scoring
-* Acuity generation
-* Area routing (Fast vs Acute)
+* Arrival processes (walk-in + EMS)
+* Acuity assignment
+* Routing logic
 
-## LwbsMixin
-
-* Waiting room logic
-* LWBS thresholds
-* Time-based patient exits
-
-## EDTreatmentMixin
+### Treatment Flow
 
 * Bed assignment
-* Treatment start
-* Reassessment flows
-* Touch logic (1-, 2-, 3-touch)
+* Assessment and reassessment
+* Multi-touch workflows
 
-## OrdersMixin
+### Orders / Diagnostics
 
-* Lab probability
-* DI probability
-* Lab/DI work generation
-* Concurrent test execution
+* Lab and imaging probabilities
+* Parallel diagnostic execution
 
-## EMSOffloadMixin
+### EMS Offload
 
-* Ambulance arrival
-* Download capacity limits
-* Offload nurse scheduling
-* Offload acuity watchdog
-* Crew hospital time modeling
+* Ambulance arrivals
+* Offload capacity constraints
+* Staffing profiles
+* Crew time modeling
 
-## InpatientFlowMixin
+### Inpatient Flow
 
-* Consult ordering
-* Admit decision logic
-* Service mapping
-* Inpatient LOS
-* Boarding if full
+* Consult logic
+* Admission decisions
+* Boarding dynamics
 
-## DoctorManager
+### Physician Management
 
-* Physician scheduling
-* Shift start times
-* Hourly signup caps
-* Panel size limits
-
-Each module is self-contained and responsible only for its operational domain.
+* Scheduling
+* Signup limits
+* Panel constraints
 
 ---
 
-# Operational Flow
-
-## Global ED Flow
+# High-Level Flow
 
 ```
-             ┌─────────────────────────────┐
-             │       Patient Arrives       │
-             └──────────────┬──────────────┘
-                            │
-                   ┌────────▼────────┐
-                   │   Triage & CTAS │
-                   └────────┬────────┘
-                            │
-                 ┌──────────▼──────────┐
-                 │ Wait / LWBS Timer   │
-                 │ (Leaves if over     │
-                 │  threshold)         │
-                 └──────────┬──────────┘
-                            │
-                   ┌────────▼────────┐
-                   │  Routed To Area │
-                   │ (FAST / ACUTE)  │
-                   └────────┬────────┘
-                            │
-         ┌──────────────────┼──────────────────┐
-         │                                      │
- ┌───────▼───────┐                       ┌──────▼───────┐
- │  FAST TRACK   │                       │    ACUTE     │
- └───────┬───────┘                       └──────┬───────┘
-         │                                      │
-         │  ┌─────────────────────┐             │
-         │  │ Initial Assessment  │             │
-         │  └──────────┬──────────┘             │
-         │             │                        │
-         │  ┌──────────▼──────────┐             │
-         │  │ Nursing + Labs + DI │             │
-         │  │ (Concurrent)        │             │
-         │  └──────────┬──────────┘             │
-         │             │                        │
-         │   ┌─────────▼─────────┐              │
-         │   │  Reassessment(s)  │              │
-         │   └─────────┬─────────┘              │
-         │             │                        │
-         │   ┌─────────▼─────────┐              │
-         │   │   Disposition     │              │
-         │   └───────────────────┘              │
-         │                                      │
-         │                    ┌─────────────────▼────────────────┐
-         │                    │   Consult Ordered? (Acute only)  │
-         │                    └─────────────────┬────────────────┘
-         │                                      │
-         │                    ┌─────────────────▼────────────────┐
-         │                    │  Admit / Discharge               │
-         │                    └─────────────────┬────────────────┘
-         │                                      │
-         │                ┌─────────────────────▼────────────────────┐
-         │                │  Inpatient LOS + Boarding (if full)     │
-         │                └──────────────────────────────────────────┘
+Arrival → Triage → Wait / LWBS → Area Routing → Assessment
+→ Diagnostics → Reassessment → Disposition → Admission → Boarding
 ```
 
 ---
 
-# EMS Offload Logic
+# Outputs & Metrics
 
-The EMS system models:
+The simulation produces:
 
-* Download capacity
-* Offload nurse staffing by hour
-* Crew hospital time
-* Acuity escalation watchdog
-* Bed assignment after download
+* Per-patient timelines
+* Aggregate statistics
+* Distribution metrics
+* Resource utilization indicators
 
-It supports 24-hour repeating staffing profiles.
-
----
-
-# Metrics & Outputs
-
-The simulation returns:
-
-* Per-patient metrics
-* Distribution statistics
-* Physician performance metrics
-* DI modality metrics
-* EMS timing metrics
-* Inpatient LOS metrics
-
-Sample fields:
+Example outputs:
 
 * `door_to_doc`
-* `doc_to_disp`
 * `bed_to_doc`
+* `doc_to_disp`
 * `los_minutes`
 * `consult_minutes_total`
 * `download_minutes`
-* `inpatient_los_minutes`
 
-Results are returned as structured JSON and optionally stored in database.
+Outputs are returned as structured JSON and can be persisted for comparison.
 
 ---
 
-# Baseline vs Adjusted Scenarios
+# Scenario Comparison
 
-The system supports structured comparison.
+Supports structured comparison of scenarios:
 
-### Default Run
-
-* Creates new comparison
-* Stores as baseline (`output_1`)
-* Marks first input
-
-### Adjusted Run
-
-* Attaches to existing comparison
-* Stores as adjusted (`output_2`)
-
-Comparison model:
-
-```
-compare
- ├── output_1  (baseline)
- └── output_2  (adjusted)
-```
+* Baseline vs adjusted configurations
+* Stored outputs for side-by-side analysis
 
 ---
 
 # API
 
-### POST `/simulate` (Authenticated)
+### POST `/simulate`
 
-Runs simulation and stores results.
+Runs a simulation with provided configuration.
 
-Request includes:
+Input:
 
-* Full configuration
-* Run parameters
-* Scenario metadata
+* simulation parameters
+* scenario metadata
 
-Returns:
+Output:
 
-* Metrics
-* Distributions
-* Compare ID (if baseline)
+* metrics
+* distributions
+* optional comparison linkage
 
 ---
 
 # Frontend
 
-React frontend supports:
+The React frontend supports:
 
-* Hospital selection
-* Config editing
-* Baseline vs adjusted comparison
-* Scenario saving
-* Metrics visualization
-* Historical run retrieval
-
-Build output is served by Flask.
+* Scenario configuration
+* Parameter editing
+* Comparison visualization
+* Historical run tracking
 
 ---
 
@@ -348,9 +253,16 @@ npm run build
 
 ---
 
+# Limitations
+
+* This is a simulation framework, not a predictive system
+* Results depend entirely on input assumptions
+* Not intended for direct operational or clinical decision-making without validation
+
+---
+
 # License
 
 MIT License
 © 2025 Murray Ware and Anton Massinger
-
-Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation files to deal in the Software without restriction.
+```

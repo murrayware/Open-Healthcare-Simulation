@@ -7,6 +7,8 @@ class LwbsMixin:
     def _lwbs_watch(self, p: "Patient", is_fast: bool):
         if getattr(p, "is_ems", False):
             return
+        if getattr(p, "seeded", False):
+            return
 
         # one-shot wait; if the patient gets a bed before this fires, we abort below
 
@@ -22,13 +24,15 @@ class LwbsMixin:
         qname = "FAST" if is_fast else "ACUTE"
         if is_fast:
             try:
-                self.fasttrack_q.remove(p.id); removed = True
+                self.fasttrack_q.remove(p.id)
+                removed = True
                 qlen = len(self.fasttrack_q)
             except ValueError:
                 qlen = len(self.fasttrack_q)
         else:
             try:
-                self.acute_q.remove(p.id); removed = True
+                self.acute_q.remove(p.id)
+                removed = True
                 qlen = len(self.acute_q)
             except ValueError:
                 qlen = len(self.acute_q)
@@ -38,9 +42,16 @@ class LwbsMixin:
             p.disp_name = "lwbs"
             p.disposition_time = self.env.now
             p.los_minutes = p.disposition_time - p.arrival_time
-            self.eventlog.add(self.env.now, "lwbs",
-                              pid=p.id, queue=qname, qlen=qlen,
-                              area=p.area, is_ems=p.is_ems)
+            self.eventlog.add(
+                self.env.now,
+                "lwbs",
+                pid=p.id,
+                queue=qname,
+                qlen=qlen,
+                area=p.area,
+                is_ems=p.is_ems,
+            )
+
     @staticmethod
     def draw_lwbs_threshold_minutes(cfg, p, is_fast: bool) -> float:
         # FAST: short fuse (eg 0.5–2h)
@@ -60,7 +71,6 @@ class LwbsMixin:
         if ctas <= 2:
             return 24*60  # effectively never
         elif ctas == 3:
-            return max(360.0, base + 60.0)  # ~7–9h
+            return max(150.0, base + 60.0)  # ~7–9h
         else:  # CTAS 4–5
-            return max(300.0, base - 60.0)  # ~5–7h
-
+            return max(100.0, base - 60.0)  # ~5–7h
