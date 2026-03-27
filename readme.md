@@ -443,5 +443,3 @@ npm run build
 
 MIT License
 © 2025 Murray Ware and Anton Massinger
-- that’s where this becomes *dangerously convincing* 😄
-```
