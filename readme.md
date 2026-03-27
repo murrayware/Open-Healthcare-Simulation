@@ -1,4 +1,4 @@
-# Emergency Department Simulation Engine (ED-EMS)
+# Open Healthcare Simulation
 
 [![Live Demo](https://img.shields.io/badge/Live-Demo-blue)](https://edsim.warewebsolutions.ca)  
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](https://opensource.org/licenses/MIT)
