@@ -141,7 +141,7 @@ Each module in `edems/` encapsulates a specific domain:
 ### Orders / Diagnostics
 
 * Lab and imaging probabilities
-* Parallel diagnostic execution
+* Time-based diagnostic delays (no explicit queues)
 
 ### EMS Offload
 
@@ -154,7 +154,7 @@ Each module in `edems/` encapsulates a specific domain:
 
 * Consult logic
 * Admission decisions
-* Boarding dynamics
+* Boarding time delays
 
 ### Physician Management
 
@@ -164,12 +164,190 @@ Each module in `edems/` encapsulates a specific domain:
 
 ---
 
-# High-Level Flow
+# Patient Flow (Conceptual)
 
 ```
-Arrival → Triage → Wait / LWBS → Area Routing → Assessment
-→ Diagnostics → Reassessment → Disposition → Admission → Boarding
+Arrival → Triage → Wait → Assessment → Diagnostics → Reassessment → Disposition → Admission → Boarding
 ```
+
+---
+
+# Detailed Patient Flow (System-Level)
+
+```
+                ┌────────────────────┐
+                │   Patient Arrival   │
+                │ (Walk-in or EMS)    │
+                └─────────┬──────────┘
+                          │
+                          ▼
+                ┌────────────────────┐
+                │       Triage        │
+                └─────────┬──────────┘
+                          │
+              ┌───────────┴────────────┐
+              │                        │
+              ▼                        ▼
+   ┌──────────────────┐     ┌────────────────────┐
+   │ Waiting Room Queue│     │ EMS Offload Queue  │
+   │ (LWBS possible)   │     │ (Crew constrained) │
+   └─────────┬────────┘     └─────────┬──────────┘
+             │                        │
+             └──────────┬─────────────┘
+                        ▼
+              ┌────────────────────┐
+              │   Area Assignment   │
+              └─────────┬──────────┘
+                        │
+                        ▼
+              ┌────────────────────┐
+              │   Bed Allocation    │
+              └─────────┬──────────┘
+                        │
+                        ▼
+              ┌────────────────────┐
+              │   MD Queue          │
+              └─────────┬──────────┘
+                        │
+                        ▼
+              ┌────────────────────┐
+              │   Assessment        │
+              │   (Touch 1)         │
+              └─────────┬──────────┘
+                        │
+                        ▼
+              ┌────────────────────────────┐
+              │ Diagnostics Waiting Time    │
+              │ (Labs / Imaging delays)     │
+              └─────────┬──────────────────┘
+                        │
+                        ▼
+          ┌──────────────────────────────┐
+          │ Reassessment Queue            │
+          └─────────┬────────────────────┘
+                    │
+                    ▼
+          ┌────────────────────┐
+          │ Reassessment        │
+          │ (Touch 2 / loops)   │
+          └─────────┬──────────┘
+                    │
+        ┌───────────┼──────────────┐
+        │           │              │
+        ▼           ▼              ▼
+   Discharge    More Orders     Consult
+                    │              │
+                    ▼              ▼
+             (back to delays)   Admission
+                                      │
+                                      ▼
+                              ┌────────────────────┐
+                              │ Boarding Time Delay │
+                              └────────────────────┘
+```
+
+---
+
+# Physician Workflow Model (3-Touch System)
+
+```
+                ┌────────────────────┐
+                │   Patient in Bed    │
+                └─────────┬──────────┘
+                          │
+                          ▼
+                ┌────────────────────┐
+                │ Touch 1: Assessment │
+                └─────────┬──────────┘
+                          │
+                          ▼
+                ┌────────────────────┐
+                │ Waiting (Diagnostics)
+                └─────────┬──────────┘
+                          │
+                          ▼
+                ┌────────────────────┐
+                │ Touch 2: Reassess   │
+                └─────────┬──────────┘
+                          │
+        ┌─────────────────┼─────────────────┐
+        │                 │                 │
+        ▼                 ▼                 ▼
+   Discharge        More Orders         Consult
+                        │                 │
+                        ▼                 ▼
+                (returns to delays)   Admission
+                          │
+                          ▼
+                ┌────────────────────┐
+                │ Touch 2 (repeat)    │
+                └─────────┬──────────┘
+                          │
+                          ▼
+                ┌────────────────────┐
+                │ Touch 3: Disposition│
+                └─────────┬──────────┘
+                          │
+                ┌─────────┴─────────┐
+                ▼                   ▼
+           Discharge           Admission
+```
+
+---
+
+# Queue Interaction Diagram
+
+```
+          [Waiting Room Queue]
+                    │
+                    ▼
+               [Bed Allocation]
+                    │
+                    ▼
+                 [MD Queue]
+                    │
+                    ▼
+                (Touch 1)
+                    │
+                    ▼
+        [Diagnostics Waiting Time]
+                    │
+                    ▼
+           [Reassessment Queue]
+                    │
+                    ▼
+                (Touch 2)
+                    │
+      ┌─────────────┼─────────────┐
+      ▼             ▼             ▼
+ Discharge     More Orders     Consult
+                    │             │
+                    ▼             ▼
+        [Diagnostics Waiting]   Admission
+                    │             │
+                    ▼             ▼
+           [Reassessment Queue]   │
+                    │             │
+                    └──────┬──────┘
+                           ▼
+                     (Touch 3)
+                           │
+            ┌──────────────┴──────────────┐
+            ▼                             ▼
+      Discharge                  Boarding Time
+```
+
+---
+
+## Key System Insight
+
+This model explicitly captures:
+
+* True operational queues (waiting room, MD, reassessment, EMS offload)
+* Time-based delays (diagnostics, boarding)
+* Interruptible physician workflows
+* Feedback loops between queues
+* Resource constraints driving congestion
 
 ---
 
@@ -265,4 +443,5 @@ npm run build
 
 MIT License
 © 2025 Murray Ware and Anton Massinger
+- that’s where this becomes *dangerously convincing* 😄
 ```
